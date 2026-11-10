@@ -68,7 +68,8 @@ function newKey_() {
 function testMoySklad() {
   Logger.log('Склады: ' + getStores_().map(function (s) { return s.name; }).join(', '));
   Logger.log('Типы цен: ' + getPriceTypes_().map(function (s) { return s.name; }).join(', '));
-  Logger.log('Юрлицо для заказов: ' + getOrg_().name);
+  Logger.log('Все юрлица в МойСклад: ' + msAll_('/entity/organization').filter(function (r) { return !r.archived; }).map(function (r) { return '«' + r.name + '»'; }).join(', '));
+  Logger.log('Юрлицо для заказов: «' + getOrg_().name + '»');
   Logger.log('Точек: ' + getPoints_().length);
 }
 
@@ -244,14 +245,16 @@ function defPt_(pts) {
 function squashName_(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 
 function getOrg_() {
-  var s = cacheGet_('org');
+  var name = prop_('ORG_NAME', 'DEUS SAMARA');
+  /* название входит в имя кэша: сменили юрлицо — оно применяется сразу, а не через час */
+  var ckey = 'org2_' + Utilities.base64EncodeWebSafe(squashName_(name)).slice(0, 60);
+  var s = cacheGet_(ckey);
   if (s) return s;
   var rows = msAll_('/entity/organization').filter(function (r) { return !r.archived; });
-  var name = prop_('ORG_NAME', 'DEUS SAMARA');
   var o = rows.filter(function (r) { return squashName_(r.name) === squashName_(name); })[0];
   if (!o) throw new Error('В МойСклад не найдено юрлицо «' + name + '» (свойство ORG_NAME). Есть: ' + rows.map(function (r) { return r.name; }).join(', '));
   s = { id: o.id, name: o.name };
-  cachePut_('org', s, 3600);
+  cachePut_(ckey, s, 3600);
   return s;
 }
 
