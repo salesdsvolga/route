@@ -110,6 +110,11 @@ function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padSta
 function parseIso(s) { var a = s.split('-'); return new Date(+a[0], a[1] - 1, +a[2]); }
 function addDays(s, n) { var d = parseIso(s); d.setDate(d.getDate() + n); return iso(d); }
 function wd(s) { var n = parseIso(s).getDay(); return n === 0 ? 7 : n; }
+function cycleWeek(s) {
+  var a = parseIso(s), b = parseIso(S.cycleStart || '2026-01-05');
+  var days = Math.round((Date.UTC(a.getFullYear(), a.getMonth(), a.getDate()) - Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())) / 86400000);
+  return ((Math.floor(days / 7) % 4) + 4) % 4 + 1;
+}
 function fmtDate(s) { var d = parseIso(s); return DAYS[wd(s) - 1] + ', ' + d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }); }
 function toast(t) { var el = $('#toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, 2600); }
 function setTitle(t, sub) { $('#title').textContent = t; $('#sub').textContent = sub || ''; }
@@ -160,7 +165,7 @@ async function start() {
   if (!DEMO && !KEY) { setTitle('Маршрут'); main('<div class="err">Откройте приложение по личной ссылке, которую прислал руководитель.</div>'); return; }
   try {
     var d = await api('init');
-    S.user = d.user; S.stores = d.stores; S.priceTypes = d.priceTypes; S.defPt = d.defPt; S.results = d.results; S.canBrand = !!d.brandReport && typeof BrandReport !== 'undefined';
+    S.user = d.user; S.stores = d.stores; S.priceTypes = d.priceTypes; S.defPt = d.defPt; S.results = d.results; S.canBrand = !!d.brandReport && typeof BrandReport !== 'undefined'; S.cycleStart = d.cycleStart || '2026-01-05';
     S.date = iso(new Date());
     var cached = lsGet('tp_points');
     if (cached) { try { setPoints(JSON.parse(cached)); } catch (e) {} }
@@ -219,7 +224,7 @@ function scrRoute() {
   setTitle('Маршрут', S.user.name);
   var r = S.route;
   var nav = '<div class="card"><div class="row"><button class="ic" data-act="day" data-n="-1">‹</button><div class="grow" style="text-align:center"><div class="name">' + esc(fmtDate(S.date)) + '</div>' +
-    (S.date === iso(new Date()) ? '<div class="mute">сегодня</div>' : '<div class="mute"><a href="#" data-act="today">вернуться к сегодня</a></div>') + '</div><button class="ic" data-act="day" data-n="1">›</button></div>';
+    '<div class="mute">' + (S.date === iso(new Date()) ? 'сегодня' : '<a href="#" data-act="today">вернуться к сегодня</a>') + ' · неделя ' + cycleWeek(S.date) + ' из 4</div></div><button class="ic" data-act="day" data-n="1">›</button></div>';
   if (!r || r.date !== S.date) { main(nav + '</div><div class="load">Загружаю маршрут…</div>'); loadRoute(); return; }
   var vis = {}; r.visits.forEach(function (v) { vis[v.pid] = v; });
   var done = r.ids.filter(function (id) { return vis[id]; }).length;
@@ -386,10 +391,18 @@ function scrOrder() {
   var head = '<div class="card">' + storeSel + (p.d > 0 ? '<div class="over" style="margin-top:8px">У точки долг ' + money(p.d) + '</div>' : '') + '</div>';
   if (!st) { main(head + '<div class="load">Загружаю остатки склада…</div>'); loadStock(o.storeId); return; }
   if (st.err) { main(head + '<div class="err">' + esc(st.err) + '</div><button class="b wide" data-act="reloadStock">Повторить</button>'); return; }
-  var groups = {}; st.items.forEach(function (it) { groups[(it.g || 'Без группы').split('/')[0]] = 1; });
-  var gl = Object.keys(groups);
+  /* все группы, где есть товар с остатком: и верхние, и вложенные (выбор верхней включает вложенные) */
+  var groups = {};
+  st.items.forEach(function (it) {
+    var parts = (it.g || 'Без группы').split('/'), path = '';
+    parts.forEach(function (part, i) { path = i ? path + '/' + part : part; groups[path] = (groups[path] || 0) + 1; });
+  });
+  var gl = Object.keys(groups).sort(function (a, b) { return a.localeCompare(b, 'ru'); });
   main(head + '<input type="search" id="oq" placeholder="Поиск товара" value="' + esc(o.q) + '" autocomplete="off">' +
-    (gl.length > 1 ? '<select id="ogrp" style="margin-top:8px"><option value="">Все группы</option>' + gl.map(function (g) { return '<option' + (g === o.grp ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('') + '</select>' : '') +
+    (gl.length > 1 ? '<select id="ogrp" style="margin-top:8px"><option value="">Все группы</option>' + gl.map(function (g) {
+      var depth = g.split('/').length - 1;
+      return '<option value="' + esc(g) + '"' + (g === o.grp ? ' selected' : '') + '>' + new Array(depth + 1).join('\u00a0\u00a0\u00a0') + esc(g.split('/').pop()) + ' (' + groups[g] + ')</option>';
+    }).join('') + '</select>' : '') +
     '<div class="row" style="margin:8px 2px"><div class="mute grow">Остатки на ' + esc(st.time) + '</div><a href="#" data-act="reloadStock">Обновить</a></div><div id="olist"></div>');
   drawItems(); drawCartBar();
 }
@@ -414,7 +427,8 @@ function drawItems() {
   var el = $('#olist'); if (!el) return;
   var o = S.ord, st = S.stock[o.storeId];
   var list = st.items.filter(function (it) {
-    if (o.grp && (it.g || 'Без группы').split('/')[0] !== o.grp) return false;
+    var ig = it.g || 'Без группы';
+    if (o.grp && ig !== o.grp && ig.indexOf(o.grp + '/') !== 0) return false;
     return !o.q || match(it.n + ' ' + it.c, o.q);
   });
   var html = '', last = null;
@@ -541,24 +555,30 @@ function scrPlan() {
   if (!pl) { main('<div class="load">Загружаю сотрудников…</div>'); loadPlan(); return; }
   if (pl.err) { main('<div class="err">' + esc(pl.err) + '</div>'); return; }
   if (!pl.emps.length) { main('<div class="empty">В таблице «Сотрудники» пока нет торговых представителей.</div>'); return; }
+  var nowW = cycleWeek(iso(new Date()));
   var html = '<div class="card"><select id="pemp">' + pl.emps.map(function (e) { return '<option value="' + esc(e.key) + '"' + (e.key === pl.emp ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select>' +
-    '<div class="chips" style="margin-top:10px">' + DAYS.map(function (d, i) {
-      var n = pl.tpl ? (pl.tpl[i + 1] || []).length : 0;
+    '<label class="f">Неделя графика (цикл из 4 недель)</label><div class="chips">' + [1, 2, 3, 4].map(function (w) {
+      return '<button class="chip ' + (pl.week === w ? 'on' : '') + '" data-act="pweek" data-n="' + w + '">' + w + '-я' + (w === nowW ? ' · сейчас' : '') + '</button>';
+    }).join('') + '</div><label class="f">День недели</label><div class="chips">' + DAYS.map(function (d, i) {
+      var n = pl.tpl ? (pl.tpl[pl.week + '-' + (i + 1)] || []).length : 0;
       return '<button class="chip ' + (pl.day === i + 1 ? 'on' : '') + '" data-act="pday" data-n="' + (i + 1) + '">' + d + (n ? ' · ' + n : '') + '</button>';
     }).join('') + '</div></div>';
   if (!pl.tpl) { main(html + '<div class="load">Загружаю маршруты…</div>'); return; }
   var editing = S.edit && S.edit.kind === 'plan';
-  var ids = editing ? S.edit.ids : (pl.tpl[pl.day] || []);
+  var slot = pl.week + '-' + pl.day;
+  var ids = editing ? S.edit.ids : (pl.tpl[slot] || []);
+  var label = DAYS[pl.day - 1] + ', ' + pl.week + '-я неделя';
   html += editing
     ? '<div class="btns"><button class="b alt" data-act="addPoint">+ Точка</button><button class="b" data-act="saveEdit">Сохранить</button><button class="b alt" data-act="cancelEdit">Отмена</button></div>'
-    : '<div class="btns"><button class="b" data-act="editPlan">Изменить маршрут на ' + DAYS[pl.day - 1] + '</button></div>';
-  html += ids.map(function (id, i) { return pointRow(id, i, { editing: editing }); }).join('') || '<div class="empty">На этот день недели точек нет</div>';
+    : '<div class="btns"><button class="b" data-act="editPlan">Изменить: ' + label + '</button></div>' +
+      (ids.length ? '<div class="btns"><button class="b alt" data-act="copyWeeks">Повторить этот день во всех 4 неделях</button></div>' : '');
+  html += ids.map(function (id, i) { return pointRow(id, i, { editing: editing }); }).join('') || '<div class="empty">На ' + label + ' точек нет</div>';
   main(html);
 }
 async function loadPlan() {
   try {
     var emps = await api('employees');
-    S.plan = { emps: emps, emp: emps[0] && emps[0].key, day: wd(iso(new Date())), tpl: null };
+    S.plan = { emps: emps, emp: emps[0] && emps[0].key, week: cycleWeek(iso(new Date())), day: wd(iso(new Date())), tpl: null };
     if (emps.length) await loadTpl();
   } catch (e) { S.plan = { err: e.message }; }
   if (cur() === scrPlan) draw();
@@ -657,13 +677,13 @@ var ACT = {
   optimize: optimize,
   ymaps: ymaps,
   editRoute: function () { S.edit = { kind: 'route', ids: S.route.ids.slice() }; draw(); },
-  editPlan: function () { var pl = S.plan; S.edit = { kind: 'plan', ids: (pl.tpl[pl.day] || []).slice() }; draw(); },
+  editPlan: function () { var pl = S.plan; S.edit = { kind: 'plan', ids: (pl.tpl[pl.week + '-' + pl.day] || []).slice() }; draw(); },
   cancelEdit: function () { S.edit = null; draw(); },
   saveEdit: async function () {
     var e = S.edit;
     try {
       if (e.kind === 'route') await saveRouteIds(e.ids);
-      else { var pl = S.plan; await api('setTemplate', { emp: pl.emp, day: pl.day, ids: e.ids }); pl.tpl[pl.day] = e.ids.slice(); }
+      else { var pl = S.plan; await api('setTemplate', { emp: pl.emp, week: pl.week, day: pl.day, ids: e.ids }); pl.tpl[pl.week + '-' + pl.day] = e.ids.slice(); }
       S.edit = null; toast('Сохранено');
     } catch (err) { toast(err.message); }
     draw();
@@ -689,7 +709,18 @@ var ACT = {
   brandSync: brandSync,
   brandReload: function () { S.brand = null; draw(); },
   brandDownload: brandDownload,
-  pday: function (d) { S.edit = null; S.plan.day = Number(d.n); draw(); }
+  pday: function (d) { S.edit = null; S.plan.day = Number(d.n); draw(); },
+  pweek: function (d) { S.edit = null; S.plan.week = Number(d.n); draw(); },
+  copyWeeks: async function () {
+    var pl = S.plan, ids = (pl.tpl[pl.week + '-' + pl.day] || []).slice();
+    if (!confirm('Записать этот список точек на ' + DAYS[pl.day - 1] + ' во все 4 недели? Маршруты этого дня в других неделях будут заменены.')) return;
+    try {
+      await api('setTemplate', { emp: pl.emp, weeks: [1, 2, 3, 4], day: pl.day, ids: ids });
+      [1, 2, 3, 4].forEach(function (w) { pl.tpl[w + '-' + pl.day] = ids.slice(); });
+      toast('Записано во все 4 недели');
+    } catch (err) { toast(err.message); }
+    draw();
+  }
 };
 document.addEventListener('click', function (e) {
   if (e.target.id === 'sheet') { ACT.closeSheet(); return; }
@@ -739,8 +770,10 @@ function demoInit() {
   D = {
     points: names.map(function (n, i) { return { id: 'p' + i, n: n[0], a: n[1], ph: i % 3 ? '+7 927 000-00-' + String(10 + i) : '', pt: ['pt1', 'pt2', '', 'pt3'][i % 4], d: n[2] }; }),
     geo: {}, items: items, days: {}, visits: [], n: 1,
-    tpl: { 1: ['p0', 'p3', 'p5', 'p8', 'p11'], 2: ['p1', 'p4', 'p7', 'p9'], 3: ['p2', 'p6', 'p10'], 4: ['p0', 'p3', 'p5', 'p8'], 5: ['p1', 'p2', 'p7', 'p9', 'p11'], 6: ['p6', 'p4'], 7: ['p5', 'p0', 'p9'] }
+    tpl: {}
   };
+  var wk = { 1: ['p0', 'p3', 'p5', 'p8', 'p11'], 2: ['p1', 'p4', 'p7', 'p9'], 3: ['p2', 'p6', 'p10'], 4: ['p0', 'p3', 'p5', 'p8'], 5: ['p1', 'p2', 'p7', 'p9', 'p11'], 6: ['p6', 'p4'], 7: ['p5', 'p0', 'p9'] };
+  [1, 2, 3, 4].forEach(function (w) { Object.keys(wk).forEach(function (d) { D.tpl[w + '-' + d] = w % 2 ? wk[d].slice() : wk[d].slice().reverse().slice(0, 3); }); });
   geo.forEach(function (g, i) { D.geo['p' + i] = g; });
 }
 function demoBrand() {
@@ -772,15 +805,15 @@ function demoApi(action, r) {
   if (!D) demoInit();
   var mgr = qs.get('demo') === 'manager';
   var today = iso(new Date());
-  function dayIds(date) { return D.days[date] || D.tpl[wd(date)] || []; }
+  function dayIds(date) { return D.days[date] || D.tpl[cycleWeek(date) + '-' + wd(date)] || []; }
   var f = {
     init: function () { return { user: { name: mgr ? 'Руководитель (демо)' : 'Иванов Иван (демо)', manager: mgr }, stores: mgr ? [{ id: 's1', name: 'Самара' }, { id: 's2', name: 'Тольятти' }] : [{ id: 's1', name: 'Самара' }],
-      priceTypes: [{ id: 'pt1', name: 'Розница' }, { id: 'pt2', name: 'Опт' }, { id: 'pt3', name: 'Крупный опт' }], defPt: 0, results: ['Заказ', 'Отказ', 'Не застал', 'Закрыто', 'Другое'], today: today, brandReport: true }; },
+      priceTypes: [{ id: 'pt1', name: 'Розница' }, { id: 'pt2', name: 'Опт' }, { id: 'pt3', name: 'Крупный опт' }], defPt: 0, results: ['Заказ', 'Отказ', 'Не застал', 'Закрыто', 'Другое'], today: today, brandReport: true, cycleStart: '2026-01-05' }; },
     brandReport: demoBrand, brandSync: demoBrand,
     points: function () { return D.points; },
     stock: function () { return r.storeId === 's2' ? D.items.slice(0, 9) : D.items; },
     route: function () { var ids = dayIds(r.date), geo = {}; ids.forEach(function (id) { geo[id] = D.geo[id]; });
-      return { ids: ids.slice(), custom: !!D.days[r.date], visits: D.visits.filter(function (v) { return v.date === r.date; }), geo: geo }; },
+      return { ids: ids.slice(), custom: !!D.days[r.date], week: cycleWeek(r.date), visits: D.visits.filter(function (v) { return v.date === r.date; }), geo: geo }; },
     saveDay: function () { D.days[r.date] = r.ids.slice(); return true; },
     pointInfo: function () { return { visits: D.visits.filter(function (v) { return v.pid === r.pid; }).slice(-5).reverse() }; },
     order: function () { var p = D.points.filter(function (x) { return x.id === r.pid; })[0], idx = Math.max(0, ['pt1', 'pt2', 'pt3'].indexOf(p.pt)), sum = 0;
@@ -789,7 +822,7 @@ function demoApi(action, r) {
     visit: function () { D.visits.push({ time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }), date: today, key: 'demo', emp: 'Иванов Иван (демо)', pid: r.pid, point: r.point, res: r.result, com: r.comment, order: r.order, sum: r.sum, photos: [] }); return true; },
     employees: function () { return [{ key: 'demo', name: 'Иванов Иван (демо)' }]; },
     getTemplate: function () { return JSON.parse(JSON.stringify(D.tpl)); },
-    setTemplate: function () { D.tpl[r.day] = r.ids.slice(); return true; },
+    setTemplate: function () { (r.weeks || [r.week]).forEach(function (w) { D.tpl[w + '-' + r.day] = r.ids.slice(); }); return true; },
     report: function () { return [{ key: 'demo', name: 'Иванов Иван (демо)', plan: dayIds(r.date), visits: D.visits.filter(function (v) { return v.date === r.date; }) }]; }
   }[action];
   return new Promise(function (res) { setTimeout(function () { res(JSON.parse(JSON.stringify(f()))); }, 200); });

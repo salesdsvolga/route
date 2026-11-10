@@ -6,10 +6,12 @@
  *
  * Свойства скрипта (Настройки проекта → Свойства скрипта):
  *   MS_TOKEN            — токен МойСклад (обязательно)
- *   ORG_NAME            — название юрлица для заказов (если пусто — первое в списке)
+ *   ORG_NAME            — название юрлица для заказов, по умолчанию «DEUS SAMARA»
  *   DEFAULT_PRICE_TYPE  — тип цены, если в карточке точки он не задан (если пусто — первый)
  *   POINT_TAG           — брать только контрагентов с этой группой (тегом); пусто — всех
- *   RESERVE             — «да», чтобы заказ сразу ставил товар в резерв
+ *   POINT_SKIP_TAGS     — не брать контрагентов из этих групп (через ;), по умолчанию «розница»
+ *   CYCLE_START         — понедельник, с которого считается 1-я неделя 4-недельного графика, по умолчанию 2026-01-05
+ *   RESERVE             — «нет», чтобы заказ не ставил товар в резерв (по умолчанию резерв ставится)
  *   SHOW_ZERO           — «да», чтобы показывать позиции с нулевым остатком
  *   DEBT_POSITIVE       — «да», если в вашем МойСклад долг покупателя — это положительный баланс
  *   TZ                  — часовой пояс, по умолчанию Europe/Samara
@@ -29,7 +31,7 @@ var SH = { users: 'Сотрудники', routes: 'Маршруты', days: 'П�
 var RESULTS = ['Заказ', 'Отказ', 'Не застал', 'Закрыто', 'Другое'];
 var HEAD = {};
 HEAD[SH.users] = ['Ключ', 'Имя', 'Роль (торговый / руководитель)', 'Склады (названия через ;)', 'Активен (да / нет)'];
-HEAD[SH.routes] = ['Ключ сотрудника', 'День недели (1–7)', 'Точки (id)', 'Точки (названия, для справки)'];
+HEAD[SH.routes] = ['Ключ сотрудника', 'Неделя и день (w1d1 … w4d7)', 'Точки (id)', 'Точки (названия, для справки)'];
 HEAD[SH.days] = ['Дата', 'Ключ сотрудника', 'Точки (id)'];
 HEAD[SH.visits] = ['Время', 'Дата', 'Ключ сотрудника', 'Сотрудник', 'Точка (id)', 'Точка', 'Результат', 'Комментарий', 'Заказ №', 'Сумма', 'Фото', 'uid'];
 HEAD[SH.geo] = ['Точка (id)', 'Широта', 'Долгота', 'Адрес'];
@@ -48,6 +50,7 @@ function setup() {
       sh.getRange(1, 1, 1, HEAD[name].length).setFontWeight('bold');
     }
     sh.getRange(1, 1, sh.getMaxRows(), HEAD[name].length).setNumberFormat('@');
+    if (name === SH.routes) sh.getRange(1, 1, 1, HEAD[name].length).setValues([HEAD[name]]);
   });
   var u = ss.getSheetByName(SH.users);
   if (u.getLastRow() === 1) {
@@ -238,13 +241,15 @@ function defPt_(pts) {
   return 0;
 }
 
+function squashName_(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+
 function getOrg_() {
   var s = cacheGet_('org');
   if (s) return s;
   var rows = msAll_('/entity/organization').filter(function (r) { return !r.archived; });
-  var name = prop_('ORG_NAME', '');
-  var o = rows.filter(function (r) { return r.name === name; })[0] || (name ? null : rows[0]);
-  if (!o) throw new Error('В МойСклад не найдено юрлицо «' + name + '»');
+  var name = prop_('ORG_NAME', 'DEUS SAMARA');
+  var o = rows.filter(function (r) { return squashName_(r.name) === squashName_(name); })[0];
+  if (!o) throw new Error('В МойСклад не найдено юрлицо «' + name + '» (свойство ORG_NAME). Есть: ' + rows.map(function (r) { return r.name; }).join(', '));
   s = { id: o.id, name: o.name };
   cachePut_('org', s, 3600);
   return s;
@@ -255,14 +260,16 @@ function getPoints_() {
   var p = cacheGet_('points');
   if (p) return p;
   var tag = String(prop_('POINT_TAG', '')).toLowerCase();
+  var skip = String(prop_('POINT_SKIP_TAGS', 'розница')).toLowerCase().split(';').map(function (x) { return x.trim(); }).filter(String);
   var debts = {}, sign = yes_(prop_('DEBT_POSITIVE', '')) ? -1 : 1;
   msAll_('/report/counterparty').forEach(function (r) {
     debts[idOf_(r.counterparty)] = Number(r.balance) || 0;
   });
   p = msAll_('/entity/counterparty').filter(function (r) {
     if (r.archived) return false;
-    if (!tag) return true;
-    return (r.tags || []).map(function (t) { return String(t).toLowerCase(); }).indexOf(tag) >= 0;
+    var tags = (r.tags || []).map(function (t) { return String(t).toLowerCase().trim(); });
+    if (skip.some(function (x) { return tags.indexOf(x) >= 0; })) return false;
+    return !tag || tags.indexOf(tag) >= 0;
   }).map(function (r) {
     var bal = (debts[r.id] || 0) * sign;
     return {
@@ -369,15 +376,35 @@ function target_(req, u) {
 
 /* ---------- маршруты ---------- */
 
-function templateIds_(key, day) {
-  var r = rows_(SH.routes).filter(function (x) { return String(x[0]) === key && Number(x[1]) === day; })[0];
-  return r ? ids_(r[2]) : [];
+/* График маршрутов — цикл из 4 недель. Ячейка «Неделя и день»: w2d3 = 2-я неделя, среда.
+   Просто число (3) — старый формат: среда каждой недели, если для недели нет своей строки. */
+function cycleStart_() { return prop_('CYCLE_START', '2026-01-05'); }
+function cycleWeek_(date) {
+  var days = Math.round((Date.parse(date + 'T12:00:00Z') - Date.parse(cycleStart_() + 'T12:00:00Z')) / 86400000);
+  return ((Math.floor(days / 7) % 4) + 4) % 4 + 1;
+}
+function slot_(cell) {
+  var s = String(cell).trim().toLowerCase(), m = s.match(/^w([1-4])d([1-7])$/);
+  if (m) return { week: Number(m[1]), day: Number(m[2]) };
+  var n = Number(s);
+  return n >= 1 && n <= 7 ? { week: 0, day: n } : null;
+}
+function templateIds_(key, week, day) {
+  var exact = null, any = null;
+  rows_(SH.routes).forEach(function (x) {
+    if (String(x[0]) !== key) return;
+    var sl = slot_(x[1]);
+    if (!sl || sl.day !== day) return;
+    if (sl.week === week) exact = ids_(x[2]);
+    else if (sl.week === 0) any = ids_(x[2]);
+  });
+  return exact || any || [];
 }
 
 function dayIds_(key, date) {
   var r = rows_(SH.days).filter(function (x) { return dstr_(x[0]) === date && String(x[1]) === key; })[0];
   if (r) return { ids: ids_(r[2]), custom: true };
-  return { ids: templateIds_(key, weekday_(date)), custom: false };
+  return { ids: templateIds_(key, cycleWeek_(date), weekday_(date)), custom: false };
 }
 
 function visitsOf_(date, key) {
@@ -452,6 +479,7 @@ var ACTIONS = {
       defPt: defPt_(pts),
       results: RESULTS,
       today: today_(),
+      cycleStart: cycleStart_(),
       brandReport: canSeeReport_(u)
     };
   },
@@ -468,7 +496,7 @@ var ACTIONS = {
     var date = checkDate_(req.date), key = target_(req, u);
     var d = dayIds_(key, date), geo = {};
     try { geo = geoFor_(d.ids); } catch (e) { geo = {}; }
-    return { ids: d.ids, custom: d.custom, visits: visitsOf_(date, key), geo: geo };
+    return { ids: d.ids, custom: d.custom, week: cycleWeek_(date), visits: visitsOf_(date, key), geo: geo };
   },
 
   saveDay: function (req, u) {
@@ -503,7 +531,7 @@ var ACTIONS = {
       if (idx < 0) idx = def;
       var smap = {};
       getStock_(store.id).forEach(function (s) { smap[s.id] = s; });
-      var reserve = yes_(prop_('RESERVE', ''));
+      var reserve = !/^(нет|no|false|0)$/i.test(String(prop_('RESERVE', 'да')).trim());
       var items = (req.items || []).filter(function (it) { return Number(it.qty) > 0; });
       if (!items.length) throw new Error('В заказе нет товаров');
       var positions = items.map(function (it) {
@@ -524,6 +552,7 @@ var ACTIONS = {
           organization: meta_('organization', getOrg_().id),
           agent: meta_('counterparty', point.id),
           store: meta_('store', store.id),
+          vatEnabled: false,
           description: note,
           positions: positions
         }
@@ -576,24 +605,38 @@ var ACTIONS = {
       .map(function (x) { return { key: x.key, name: x.name }; });
   },
 
+  /* Шаблон сотрудника: { 'неделя-день': [id точек] }, например '2-3' — 2-я неделя, среда. */
   getTemplate: function (req, u) {
     mgr_(u);
-    var out = {};
+    var out = {}, legacy = {};
     rows_(SH.routes).forEach(function (r) {
-      if (String(r[0]) === String(req.emp)) out[Number(r[1])] = ids_(r[2]);
+      if (String(r[0]) !== String(req.emp)) return;
+      var sl = slot_(r[1]);
+      if (!sl) return;
+      if (sl.week) out[sl.week + '-' + sl.day] = ids_(r[2]);
+      else legacy[sl.day] = ids_(r[2]);
+    });
+    Object.keys(legacy).forEach(function (d) {
+      for (var w = 1; w <= 4; w++) if (!out[w + '-' + d]) out[w + '-' + d] = legacy[d];
     });
     return out;
   },
 
+  /* weeks — список недель (1–4), в которые записать этот день; по умолчанию одна req.week. */
   setTemplate: function (req, u) {
     mgr_(u);
     var day = Number(req.day), emp = String(req.emp), ids = (req.ids || []).map(String);
+    var weeks = (req.weeks && req.weeks.length ? req.weeks : [req.week]).map(Number);
     if (!(day >= 1 && day <= 7)) throw new Error('Неверный день недели');
+    if (!weeks.length || weeks.some(function (w) { return !(w >= 1 && w <= 4); })) throw new Error('Неверная неделя графика');
     var pmap = {};
     getPoints_().forEach(function (p) { pmap[p.id] = p.n; });
     var names = ids.map(function (id) { return pmap[id] || '?'; }).join('; ');
-    upsert_(SH.routes, function (r) { return String(r[0]) === emp && Number(r[1]) === day; },
-      [emp, String(day), JSON.stringify(ids), names]);
+    weeks.forEach(function (w) {
+      var code = 'w' + w + 'd' + day;
+      upsert_(SH.routes, function (r) { return String(r[0]) === emp && String(r[1]).trim().toLowerCase() === code; },
+        [emp, code, JSON.stringify(ids), names]);
+    });
     return true;
   },
 
