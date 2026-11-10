@@ -257,10 +257,12 @@ function getOrg_() {
 
 /** Точки: контрагенты + долг. Долг = отрицательный баланс контрагента. */
 function getPoints_() {
-  var p = cacheGet_('points');
-  if (p) return p;
-  var tag = String(prop_('POINT_TAG', '')).toLowerCase();
+  var tag = String(prop_('POINT_TAG', '')).toLowerCase().trim();
   var skip = String(prop_('POINT_SKIP_TAGS', 'розница')).toLowerCase().split(';').map(function (x) { return x.trim(); }).filter(String);
+  /* настройки отбора входят в имя кэша: поменяли группы — список пересобирается сразу, а не через 15 минут */
+  var ckey = 'points2_' + Utilities.base64EncodeWebSafe(tag + '|' + skip.join(';')).slice(0, 60);
+  var p = cacheGet_(ckey);
+  if (p) return p;
   var debts = {}, sign = yes_(prop_('DEBT_POSITIVE', '')) ? -1 : 1;
   msAll_('/report/counterparty').forEach(function (r) {
     debts[idOf_(r.counterparty)] = Number(r.balance) || 0;
@@ -282,7 +284,7 @@ function getPoints_() {
     };
   });
   p.sort(function (a, b) { return a.n.localeCompare(b.n, 'ru'); });
-  cachePut_('points', p, 900);
+  cachePut_(ckey, p, 900);
   return p;
 }
 
@@ -893,4 +895,26 @@ function checkReport() {
   pl.debts.forEach(function (d) { bal += d.balance; });
   Logger.log('Долгов: ' + pl.debts.length + ' · общий остаток: ' + Math.round(bal) + ' ₽');
   if (pl.points[0]) Logger.log('Пример точки: ' + pl.points[0].c + ' | ' + pl.points[0].a);
+}
+
+
+/**
+ * Какие группы контрагентов есть в МойСклад и сколько точек попадёт в приложение.
+ * Запустите вручную и откройте журнал: название группы в POINT_SKIP_TAGS должно совпадать с тем, что здесь.
+ */
+function checkPoints() {
+  var skip = String(prop_('POINT_SKIP_TAGS', 'розница')).toLowerCase().split(';').map(function (x) { return x.trim(); }).filter(String);
+  var count = {}, all = 0, noTag = 0;
+  msAll_('/entity/counterparty').forEach(function (r) {
+    if (r.archived) return;
+    all++;
+    if (!(r.tags || []).length) noTag++;
+    (r.tags || []).forEach(function (t) { count[t] = (count[t] || 0) + 1; });
+  });
+  Logger.log('Контрагентов не в архиве: ' + all + ' · без группы: ' + noTag);
+  Object.keys(count).sort().forEach(function (t) {
+    Logger.log('Группа «' + t + '»: ' + count[t] + (skip.indexOf(String(t).toLowerCase().trim()) >= 0 ? '  ← не загружается' : ''));
+  });
+  Logger.log('Не загружать группы (POINT_SKIP_TAGS): ' + skip.join('; '));
+  Logger.log('В приложение попадёт точек: ' + getPoints_().length);
 }
