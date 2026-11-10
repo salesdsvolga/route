@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#16181d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Маршрут">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Маршрут — торговый представитель</title>
+<style>
+:root{--bg:#f3f4f6;--card:#fff;--ink:#16181d;--mute:#6b7280;--line:#e5e7eb;--acc:#1f6feb;--ok:#15803d;--okbg:#dcfce7;--bad:#b91c1c;--badbg:#fee2e2;--warn:#92400e;--warnbg:#fef3c7;--r:16px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{font:16px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 10px}
+#back{background:none;border:0;color:#fff;font-size:28px;line-height:1;padding:0 8px 4px 0;visibility:hidden}
+#title{font-weight:700;font-size:18px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sub{font-size:13px;opacity:.75;white-space:nowrap}
+main{padding:12px 12px calc(150px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;padding:12px 4px;font-size:14px;color:var(--mute);font-weight:600}
+nav button.on{color:var(--acc)}
+.card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.row{display:flex;gap:10px;align-items:center}
+.grow{flex:1;min-width:0}
+.name{font-weight:650}
+.mute{color:var(--mute);font-size:13.5px}
+.num{width:28px;height:28px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none}
+.num.done{background:var(--okbg);color:var(--ok)}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--bg);color:var(--mute);margin:4px 4px 0 0}
+.tag.ok{background:var(--okbg);color:var(--ok)}.tag.bad{background:var(--badbg);color:var(--bad)}.tag.warn{background:var(--warnbg);color:var(--warn)}
+button.b,a.b{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:12px;padding:12px 14px;font:inherit;font-weight:650;background:var(--acc);color:#fff;text-decoration:none;cursor:pointer}
+.b.alt{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}.b.wide{width:100%}.b.sm{padding:8px 11px;font-size:14px;border-radius:10px}
+.b[disabled]{opacity:.5}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.btns .b{flex:1;white-space:nowrap}
+input[type=text],input[type=search],input[type=date],textarea,select{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font:inherit;background:#fff;color:var(--ink)}
+textarea{min-height:84px;resize:vertical}
+label.f{display:block;font-size:13.5px;color:var(--mute);margin:10px 0 5px}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--ok)}
+.load,.empty{text-align:center;color:var(--mute);padding:36px 10px}
+.err{background:var(--badbg);color:var(--bad);border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.demo{background:var(--warnbg);color:var(--warn);border-radius:var(--r);padding:10px 14px;margin-bottom:10px;font-size:14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 13px;font:inherit;font-size:14.5px}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ic{background:var(--bg);border:0;border-radius:10px;width:36px;height:36px;font-size:16px;flex:none}
+.item{background:var(--card);border-radius:14px;padding:10px 12px;margin-bottom:6px}
+.grp{font-size:13px;font-weight:700;color:var(--mute);margin:14px 4px 6px;text-transform:uppercase;letter-spacing:.03em}
+.qty{display:flex;align-items:center;gap:4px;flex:none}
+.qty input{width:54px;text-align:center;border:1px solid var(--line);border-radius:10px;padding:8px 2px;font:inherit}
+.over{color:var(--bad);font-weight:650}
+#cartbar{position:fixed;left:0;right:0;bottom:calc(46px + env(safe-area-inset-bottom));z-index:6;padding:8px 12px;display:none}
+#cartbar .b{width:100%;max-width:696px;margin:0 auto;display:flex;box-shadow:0 6px 18px rgba(31,111,235,.35)}
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.45);display:flex;align-items:flex-end}
+.sheet.hidden{display:none}
+.sheet-body{background:var(--bg);width:100%;max-width:720px;margin:0 auto;max-height:86vh;overflow:auto;border-radius:20px 20px 0 0;padding:14px 12px calc(20px + env(safe-area-inset-bottom))}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.thumbs div{position:relative}
+.thumbs img{width:76px;height:76px;object-fit:cover;border-radius:12px;display:block}
+.thumbs button{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:0;background:var(--ink);color:#fff}
+#bframe{width:100%;border:0;border-radius:var(--r);background:#f6f4ef;height:calc(100vh - 290px);min-height:440px;display:block}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:120px;z-index:30;background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:14.5px;display:none;max-width:90%}
+table.t{width:100%;border-collapse:collapse;font-size:14.5px}
+table.t td{padding:6px 0;border-bottom:1px solid var(--line);vertical-align:top}
+table.t td:last-child{text-align:right;white-space:nowrap}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<header><button id="back" data-act="back" aria-label="Назад">‹</button><div id="title"></div><div id="sub"></div></header>
+<main id="main"><div class="load">Загрузка…</div></main>
+<div id="cartbar"></div>
+<nav id="nav"></nav>
+<div id="sheet" class="sheet hidden"><div class="sheet-body" id="sheetBody"></div></div>
+<div id="toast"></div>
+
+<script src="report.js"></script>
+<script>
+/* ================= НАСТРОЙКА =================
+   Вставьте сюда ссылку веб-приложения Apps Script (заканчивается на /exec).
+   Пока ссылка не вставлена, приложение работает в демо-режиме с выдуманными данными. */
+var API_URL = '';
+/* ============================================= */
+
+var qs = new URLSearchParams(location.search);
+var DEMO = !API_URL || qs.has('demo');
+var KEY = qs.get('key') || lsGet('tp_key') || '';
+if (qs.get('key')) { lsSet('tp_key', KEY); }
+
+var S = { user: null, stores: [], priceTypes: [], defPt: 0, results: [], points: [], pmap: {}, tab: '', date: '', route: null,
+          stock: {}, ord: null, visit: null, edit: null, plan: null, rep: null, pq: '', info: {}, brand: null, bsep: null, canBrand: false };
+var stack = [];
+var DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+/* ---------- мелочи ---------- */
+function $(s) { return document.querySelector(s); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function money(n) { return (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ₽'; }
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function parseIso(s) { var a = s.split('-'); return new Date(+a[0], a[1] - 1, +a[2]); }
+function addDays(s, n) { var d = parseIso(s); d.setDate(d.getDate() + n); return iso(d); }
+function wd(s) { var n = parseIso(s).getDay(); return n === 0 ? 7 : n; }
+function fmtDate(s) { var d = parseIso(s); return DAYS[wd(s) - 1] + ', ' + d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }); }
+function toast(t) { var el = $('#toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, 2600); }
+function setTitle(t, sub) { $('#title').textContent = t; $('#sub').textContent = sub || ''; }
+function main(html) { $('#main').innerHTML = (DEMO ? '<div class="demo">Демо-режим: данные выдуманы, в МойСклад ничего не отправляется.</div>' : '') + html; }
+function norm(s) { return String(s || '').toLowerCase().replace(/ё/g, 'е'); }
+function match(text, q) { var t = norm(text); return norm(q).split(/\s+/).filter(Boolean).every(function (w) { return t.indexOf(w) >= 0; }); }
+
+/* ---------- связь с сервером ---------- */
+async function api(action, data) {
+  if (DEMO) return demoApi(action, data || {});
+  var body = Object.assign({ key: KEY, action: action }, data || {});
+  var r;
+  try {
+    r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  } catch (e) { throw new Error('Нет связи. Проверьте интернет и повторите.'); }
+  var j;
+  try { j = await r.json(); } catch (e) { throw new Error('Сервер ответил с ошибкой. Повторите через минуту.'); }
+  if (!j.ok) throw new Error(j.error || 'Ошибка');
+  return j.data;
+}
+
+/* ---------- навигация ---------- */
+function go(fn, arg) { stack.push([fn, arg]); draw(); window.scrollTo(0, 0); }
+function back() { if (stack.length > 1) { stack.pop(); draw(); } }
+function root(fn) { stack = [[fn]]; draw(); window.scrollTo(0, 0); }
+function cur() { return stack[stack.length - 1][0]; }
+function draw() {
+  var top = stack[stack.length - 1];
+  $('#back').style.visibility = stack.length > 1 ? 'visible' : 'hidden';
+  $('#cartbar').style.display = 'none';
+  $('#main').style.maxWidth = top[0] === scrBrand ? '1220px' : '';
+  top[0](top[1]);
+  drawNav();
+}
+function drawNav() {
+  if (!S.user) { $('#nav').innerHTML = ''; return; }
+  var tabs = S.user.manager ? [['report', 'Визиты'], ['plan', 'Маршруты'], ['points', 'Точки']] : [['route', 'Маршрут'], ['points', 'Точки']];
+  if (S.canBrand) tabs.push(['brand', 'Бренды']);
+  $('#nav').innerHTML = tabs.map(function (t) { return '<button data-act="tab" data-id="' + t[0] + '" class="' + (S.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>'; }).join('');
+}
+function openTab(id) {
+  S.tab = id;
+  root({ route: scrRoute, points: scrPoints, plan: scrPlan, report: scrReport, brand: scrBrand }[id]);
+}
+
+/* ---------- запуск ---------- */
+async function start() {
+  if (!DEMO && !KEY) { setTitle('Маршрут'); main('<div class="err">Откройте приложение по личной ссылке, которую прислал руководитель.</div>'); return; }
+  try {
+    var d = await api('init');
+    S.user = d.user; S.stores = d.stores; S.priceTypes = d.priceTypes; S.defPt = d.defPt; S.results = d.results; S.canBrand = !!d.brandReport && typeof BrandReport !== 'undefined';
+    S.date = iso(new Date());
+    var cached = lsGet('tp_points');
+    if (cached) { try { setPoints(JSON.parse(cached)); } catch (e) {} }
+    openTab(S.user.manager ? 'report' : 'route');
+    loadPoints();
+  } catch (e) {
+    setTitle('Маршрут');
+    main('<div class="err">' + esc(e.message) + '</div><button class="b wide" data-act="reload">Повторить</button>');
+  }
+}
+function setPoints(p) { S.points = p; S.pmap = {}; p.forEach(function (x) { S.pmap[x.id] = x; }); }
+async function loadPoints() {
+  try { var p = await api('points'); setPoints(p); lsSet('tp_points', JSON.stringify(p)); if (stack.length) draw(); }
+  catch (e) { if (!S.points.length) toast(e.message); }
+}
+function pointName(id) { return S.pmap[id] ? S.pmap[id].n : 'Точка не найдена в МойСклад'; }
+
+/* ---------- общий список точек с правкой ---------- */
+function pointRow(id, i, opt) {
+  var p = S.pmap[id] || { n: pointName(id), a: '', d: 0 };
+  var v = opt.visits && opt.visits[id];
+  var tags = '';
+  if (v) tags += '<span class="tag ' + (v.res === 'Заказ' ? 'ok' : 'warn') + '">' + esc(v.res) + (v.sum ? ' · ' + money(v.sum) : '') + '</span>';
+  if (p.d > 0) tags += '<span class="tag bad">Долг ' + money(p.d) + '</span>';
+  var ctl = opt.editing
+    ? '<button class="ic" data-act="up" data-i="' + i + '">↑</button><button class="ic" data-act="down" data-i="' + i + '">↓</button><button class="ic" data-act="del" data-i="' + i + '">✕</button>'
+    : '';
+  return '<div class="card"><div class="row"><div class="num ' + (v ? 'done' : '') + '">' + (v ? '✓' : i + 1) + '</div>' +
+    '<div class="grow" ' + (opt.editing ? '' : 'data-act="point" data-id="' + esc(id) + '"') + '><div class="name">' + esc(p.n) + '</div>' +
+    '<div class="mute">' + esc(p.a || 'Адрес не указан') + '</div>' + tags + '</div>' + ctl + '</div></div>';
+}
+function editMove(i, dir) {
+  var a = S.edit.ids, j = i + dir;
+  if (j < 0 || j >= a.length) return;
+  var t = a[i]; a[i] = a[j]; a[j] = t;
+  S.edit.dirty = true; draw();
+}
+function openPicker() {
+  S.pq = '';
+  $('#sheetBody').innerHTML = '<div class="row" style="margin-bottom:10px"><input type="search" id="pq" placeholder="Название или адрес точки" autocomplete="off"><button class="b alt" data-act="closeSheet">Готово</button></div><div id="plist"></div>';
+  $('#sheet').classList.remove('hidden');
+  drawPicker();
+  $('#pq').focus();
+}
+function drawPicker() {
+  var have = {}; S.edit.ids.forEach(function (id) { have[id] = 1; });
+  var list = S.points.filter(function (p) { return !S.pq || match(p.n + ' ' + p.a, S.pq); }).slice(0, 50);
+  $('#plist').innerHTML = list.map(function (p) {
+    return '<div class="item"><div class="row"><div class="grow"><div class="name">' + esc(p.n) + '</div><div class="mute">' + esc(p.a) + '</div></div>' +
+      (have[p.id] ? '<span class="tag ok">в маршруте</span>' : '<button class="b sm" data-act="pick" data-id="' + esc(p.id) + '">Добавить</button>') + '</div></div>';
+  }).join('') || '<div class="empty">Ничего не найдено</div>';
+}
+
+/* ---------- маршрут ---------- */
+function scrRoute() {
+  setTitle('Маршрут', S.user.name);
+  var r = S.route;
+  var nav = '<div class="card"><div class="row"><button class="ic" data-act="day" data-n="-1">‹</button><div class="grow" style="text-align:center"><div class="name">' + esc(fmtDate(S.date)) + '</div>' +
+    (S.date === iso(new Date()) ? '<div class="mute">сегодня</div>' : '<div class="mute"><a href="#" data-act="today">вернуться к сегодня</a></div>') + '</div><button class="ic" data-act="day" data-n="1">›</button></div>';
+  if (!r || r.date !== S.date) { main(nav + '</div><div class="load">Загружаю маршрут…</div>'); loadRoute(); return; }
+  var vis = {}; r.visits.forEach(function (v) { vis[v.pid] = v; });
+  var done = r.ids.filter(function (id) { return vis[id]; }).length;
+  var orders = r.visits.filter(function (v) { return v.order; });
+  var sum = orders.reduce(function (s, v) { return s + v.sum; }, 0);
+  nav += '<div class="bar"><i style="width:' + (r.ids.length ? Math.round(done / r.ids.length * 100) : 0) + '%"></i></div>' +
+    '<div class="mute" style="margin-top:6px">Посещено ' + done + ' из ' + r.ids.length + ' · заказов ' + orders.length + (sum ? ' на ' + money(sum) : '') + '</div></div>';
+  var editing = S.edit && S.edit.kind === 'route';
+  var html = nav + (r.err ? '<div class="err">' + esc(r.err) + '</div>' : '');
+  if (editing) {
+    html += '<div class="btns"><button class="b alt" data-act="addPoint">+ Точка</button><button class="b" data-act="saveEdit">Сохранить</button><button class="b alt" data-act="cancelEdit">Отмена</button></div>';
+  } else {
+    html += '<div class="btns"><button class="b alt" data-act="optimize">Порядок по карте</button><button class="b alt" data-act="ymaps">В Яндекс Картах</button><button class="b alt" data-act="editRoute">Изменить</button></div>';
+  }
+  var ids = editing ? S.edit.ids : r.ids;
+  html += ids.map(function (id, i) { return pointRow(id, i, { visits: vis, editing: editing }); }).join('') ||
+    '<div class="empty">На этот день точек нет.<br>Нажмите «Изменить», чтобы добавить.</div>';
+  var extra = r.visits.filter(function (v) { return r.ids.indexOf(v.pid) < 0; });
+  if (extra.length && !editing) {
+    html += '<div class="grp">Визиты вне маршрута</div>' + extra.map(function (v) {
+      return '<div class="card" data-act="point" data-id="' + esc(v.pid) + '"><div class="name">' + esc(v.point) + '</div><span class="tag ' + (v.res === 'Заказ' ? 'ok' : 'warn') + '">' + esc(v.res) + (v.sum ? ' · ' + money(v.sum) : '') + '</span></div>';
+    }).join('');
+  }
+  main(html);
+}
+async function loadRoute() {
+  var date = S.date;
+  try { var d = await api('route', { date: date }); d.date = date; S.route = d; }
+  catch (e) { S.route = { date: date, ids: [], visits: [], geo: {}, err: e.message }; }
+  if (cur() === scrRoute && S.date === date) draw();
+}
+async function saveRouteIds(ids) {
+  await api('saveDay', { date: S.date, ids: ids });
+  S.route.ids = ids.slice(); S.route.custom = true;
+}
+function dist(a, b) {
+  var R = 6371, dLat = (b[0] - a[0]) * Math.PI / 180, dLon = (b[1] - a[1]) * Math.PI / 180;
+  var x = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+function getPos() {
+  return new Promise(function (res) {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(function (p) { res([p.coords.latitude, p.coords.longitude]); }, function () { res(null); }, { timeout: 8000, maximumAge: 60000 });
+  });
+}
+/* Порядок объезда: посещённые остаются наверху, остальные — каждый раз ближайшая точка. */
+function orderIds(ids, geo, visited, from) {
+  var done = ids.filter(function (id) { return visited[id]; });
+  var rest = ids.filter(function (id) { return !visited[id] && geo[id]; });
+  var noGeo = ids.filter(function (id) { return !visited[id] && !geo[id]; });
+  var out = [], pos = from;
+  if (!pos && rest.length) { pos = geo[rest[0]]; }
+  while (rest.length) {
+    var best = 0, bd = Infinity;
+    rest.forEach(function (id, i) { var d = dist(pos, geo[id]); if (d < bd) { bd = d; best = i; } });
+    var id = rest.splice(best, 1)[0];
+    out.push(id); pos = geo[id];
+  }
+  return done.concat(out, noGeo);
+}
+async function optimize() {
+  var r = S.route;
+  if (r.ids.length < 3) { toast('Для расчёта нужно хотя бы 3 точки'); return; }
+  toast('Определяю ваше местоположение…');
+  var from = await getPos();
+  var vis = {}; r.visits.forEach(function (v) { vis[v.pid] = 1; });
+  var ids = orderIds(r.ids, r.geo || {}, vis, from);
+  var miss = r.ids.filter(function (id) { return !(r.geo || {})[id] && !vis[id]; }).length;
+  try {
+    await saveRouteIds(ids);
+    toast(miss ? 'Готово. Без координат осталось точек: ' + miss + ' — они в конце списка' : 'Порядок обновлён' + (from ? ' от вашего местоположения' : ''));
+  } catch (e) { toast(e.message); }
+  draw();
+}
+function ymaps() {
+  var r = S.route, vis = {}; r.visits.forEach(function (v) { vis[v.pid] = 1; });
+  var pts = r.ids.filter(function (id) { return !vis[id]; }).map(function (id) {
+    var g = (r.geo || {})[id], p = S.pmap[id];
+    return g ? g[0] + ',' + g[1] : (p && p.a ? p.a : '');
+  }).filter(Boolean);
+  if (!pts.length) { toast('Нет непосещённых точек с адресом'); return; }
+  if (pts.length > 10) toast('Яндекс Карты строят маршрут не больше чем по 10 точкам — открываю первые 10');
+  window.open('https://yandex.ru/maps/?rtt=auto&rtext=' + encodeURIComponent('~' + pts.slice(0, 10).join('~')), '_blank');
+}
+
+/* ---------- список точек ---------- */
+function scrPoints() {
+  setTitle('Точки', S.points.length ? String(S.points.length) : '');
+  main('<input type="search" id="ptq" placeholder="Название или адрес" value="' + esc(S.ptq || '') + '" autocomplete="off" style="margin-bottom:10px"><div id="ptlist"></div>');
+  drawPointList();
+}
+function drawPointList() {
+  var el = $('#ptlist'); if (!el) return;
+  if (!S.points.length) { el.innerHTML = '<div class="load">Загружаю точки из МойСклад…</div>'; return; }
+  var q = S.ptq || '';
+  var list = S.points.filter(function (p) { return !q || match(p.n + ' ' + p.a, q); });
+  el.innerHTML = list.slice(0, 80).map(function (p) {
+    return '<div class="card" data-act="point" data-id="' + esc(p.id) + '"><div class="name">' + esc(p.n) + '</div><div class="mute">' + esc(p.a || 'Адрес не указан') + '</div>' +
+      (p.d > 0 ? '<span class="tag bad">Долг ' + money(p.d) + '</span>' : '') + '</div>';
+  }).join('') + (list.length > 80 ? '<div class="empty">Показаны первые 80 из ' + list.length + '. Уточните поиск.</div>' : '') || '<div class="empty">Ничего не найдено</div>';
+}
+
+/* ---------- карточка точки ---------- */
+function ptIndex(p) {
+  for (var i = 0; i < S.priceTypes.length; i++) if (S.priceTypes[i].id === p.pt) return i;
+  return S.defPt;
+}
+function scrPoint(id) {
+  var p = S.pmap[id];
+  if (!p) { setTitle('Точка'); main('<div class="err">Точка не найдена в МойСклад. Возможно, её перенесли в архив.</div>'); return; }
+  setTitle(p.n);
+  var pt = S.priceTypes[ptIndex(p)];
+  var html = '<div class="card"><div class="name">' + esc(p.n) + '</div><div class="mute">' + esc(p.a || 'Адрес не указан') + '</div>' +
+    '<table class="t" style="margin-top:8px"><tr><td>Долг</td><td class="' + (p.d > 0 ? 'over' : '') + '">' + (p.d > 0 ? money(p.d) : 'нет') + '</td></tr>' +
+    '<tr><td>Тип цены</td><td>' + esc(pt ? pt.name : '—') + (p.pt ? '' : ' <span class="mute">(по умолчанию)</span>') + '</td></tr>' +
+    (p.ph ? '<tr><td>Телефон</td><td><a href="tel:' + esc(p.ph.replace(/[^\d+]/g, '')) + '">' + esc(p.ph) + '</a></td></tr>' : '') + '</table></div>';
+  var saved = cartLoad(id), n = Object.keys(saved.cart || {}).length;
+  html += '<div class="btns"><button class="b" data-act="order" data-id="' + esc(id) + '">' + (n ? 'Продолжить заказ (' + n + ')' : 'Оформить заказ') + '</button>' +
+    '<button class="b alt" data-act="visit" data-id="' + esc(id) + '">Отметить визит</button></div>';
+  if (p.a) html += '<div class="btns"><a class="b alt" target="_blank" rel="noopener" href="https://yandex.ru/maps/?text=' + encodeURIComponent(p.a) + '">Показать на карте</a></div>';
+  var info = S.info[id];
+  html += '<div class="grp">Последние визиты</div>';
+  if (!info) { html += '<div class="load">Загружаю…</div>'; loadInfo(id); }
+  else if (info.err) html += '<div class="err">' + esc(info.err) + '</div>';
+  else html += info.visits.map(visitCard).join('') || '<div class="empty">Визитов пока не было</div>';
+  main(html);
+}
+function visitCard(v) {
+  return '<div class="card"><div class="row"><div class="grow"><span class="tag ' + (v.res === 'Заказ' ? 'ok' : 'warn') + '" style="margin-top:0">' + esc(v.res) + '</span> ' +
+    '<span class="mute">' + esc(v.date.split('-').reverse().join('.')) + ' ' + esc(v.time) + ' · ' + esc(v.emp) + '</span></div></div>' +
+    (v.order ? '<div style="margin-top:6px">Заказ № ' + esc(v.order) + ' на ' + money(v.sum) + '</div>' : '') +
+    (v.com ? '<div style="margin-top:6px">' + esc(v.com) + '</div>' : '') +
+    (v.photos.length ? '<div style="margin-top:6px">' + v.photos.map(function (u, i) { return '<a target="_blank" rel="noopener" href="' + esc(u) + '">Фото ' + (i + 1) + '</a>'; }).join(' · ') + '</div>' : '') + '</div>';
+}
+async function loadInfo(id) {
+  try { S.info[id] = await api('pointInfo', { pid: id }); } catch (e) { S.info[id] = { visits: [], err: e.message }; }
+  if (cur() === scrPoint) draw();
+}
+
+/* ---------- заказ ---------- */
+function cartLoad(pid) { try { return JSON.parse(lsGet('tp_cart_' + pid)) || {}; } catch (e) { return {}; } }
+function cartSave() { var o = S.ord; lsSet('tp_cart_' + o.pid, JSON.stringify({ cart: o.cart, storeId: o.storeId, comment: o.comment, uid: o.uid })); }
+function startOrder(pid) {
+  var saved = cartLoad(pid);
+  var storeId = saved.storeId && S.stores.some(function (s) { return s.id === saved.storeId; }) ? saved.storeId : (S.stores[0] && S.stores[0].id);
+  S.ord = { pid: pid, storeId: storeId, cart: saved.cart || {}, comment: saved.comment || '', uid: saved.uid || uid(), q: '', grp: '', limit: 60, onlyCart: false };
+  go(scrOrder);
+}
+function price(it) { var i = ptIndex(S.pmap[S.ord.pid]); return it.p[i] || it.p[S.defPt] || 0; }
+function cartTotals() {
+  var o = S.ord, st = S.stock[o.storeId], n = 0, sum = 0;
+  Object.keys(o.cart).forEach(function (id) { var it = st && st.map[id]; n++; if (it) sum += price(it) * o.cart[id]; });
+  return { n: n, sum: sum };
+}
+function scrOrder() {
+  var o = S.ord, p = S.pmap[o.pid];
+  setTitle('Заказ', p.n);
+  if (!S.stores.length) { main('<div class="err">Вам не назначен склад. Попросите руководителя указать его в таблице «Сотрудники».</div>'); return; }
+  var st = S.stock[o.storeId];
+  var storeSel = S.stores.length > 1
+    ? '<select id="store">' + S.stores.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === o.storeId ? ' selected' : '') + '>Склад: ' + esc(s.name) + '</option>'; }).join('') + '</select>'
+    : '<div class="mute">Склад: ' + esc(S.stores[0].name) + '</div>';
+  var head = '<div class="card">' + storeSel + (p.d > 0 ? '<div class="over" style="margin-top:8px">У точки долг ' + money(p.d) + '</div>' : '') + '</div>';
+  if (!st) { main(head + '<div class="load">Загружаю остатки склада…</div>'); loadStock(o.storeId); return; }
+  if (st.err) { main(head + '<div class="err">' + esc(st.err) + '</div><button class="b wide" data-act="reloadStock">Повторить</button>'); return; }
+  var groups = {}; st.items.forEach(function (it) { groups[(it.g || 'Без группы').split('/')[0]] = 1; });
+  var gl = Object.keys(groups);
+  main(head + '<input type="search" id="oq" placeholder="Поиск товара" value="' + esc(o.q) + '" autocomplete="off">' +
+    (gl.length > 1 ? '<select id="ogrp" style="margin-top:8px"><option value="">Все группы</option>' + gl.map(function (g) { return '<option' + (g === o.grp ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('') + '</select>' : '') +
+    '<div class="row" style="margin:8px 2px"><div class="mute grow">Остатки на ' + esc(st.time) + '</div><a href="#" data-act="reloadStock">Обновить</a></div><div id="olist"></div>');
+  drawItems(); drawCartBar();
+}
+async function loadStock(storeId) {
+  try {
+    var items = await api('stock', { storeId: storeId }), map = {};
+    items.forEach(function (it) { map[it.id] = it; });
+    S.stock[storeId] = { items: items, map: map, time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) };
+  } catch (e) { S.stock[storeId] = { err: e.message }; }
+  if (cur() === scrOrder || cur() === scrCart) draw();
+}
+function itemRow(it) {
+  var o = S.ord, q = o.cart[it.id] || 0;
+  return '<div class="item" data-item="' + esc(it.id) + '"><div class="row"><div class="grow"><div>' + esc(it.n) + '</div>' +
+    '<div class="mute"><b style="color:var(--ink)">' + money(price(it)) + '</b> · доступно ' + it.q + (it.s !== it.q ? ' (на складе ' + it.s + ')' : '') + '</div>' +
+    '<div class="over warnq" style="font-size:13px;display:' + (q > it.q ? 'block' : 'none') + '">Больше, чем доступно на складе</div></div>' +
+    '<div class="qty"><button class="ic" data-act="qty" data-id="' + esc(it.id) + '" data-n="-1">−</button>' +
+    '<input type="text" inputmode="numeric" data-qty="' + esc(it.id) + '" value="' + (q || '') + '" placeholder="0">' +
+    '<button class="ic" data-act="qty" data-id="' + esc(it.id) + '" data-n="1">+</button></div></div></div>';
+}
+function drawItems() {
+  var el = $('#olist'); if (!el) return;
+  var o = S.ord, st = S.stock[o.storeId];
+  var list = st.items.filter(function (it) {
+    if (o.grp && (it.g || 'Без группы').split('/')[0] !== o.grp) return false;
+    return !o.q || match(it.n + ' ' + it.c, o.q);
+  });
+  var html = '', last = null;
+  list.slice(0, o.limit).forEach(function (it) {
+    var g = it.g || 'Без группы';
+    if (g !== last) { html += '<div class="grp">' + esc(g) + '</div>'; last = g; }
+    html += itemRow(it);
+  });
+  if (list.length > o.limit) html += '<button class="b alt wide" data-act="more">Показать ещё (' + (list.length - o.limit) + ')</button>';
+  el.innerHTML = html || '<div class="empty">Ничего не найдено</div>';
+}
+function drawCartBar() {
+  var t = cartTotals(), el = $('#cartbar');
+  if (cur() !== scrOrder || !t.n) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<button class="b" data-act="cart">Корзина: ' + t.n + ' поз. · ' + money(t.sum) + '</button>';
+}
+function setQty(id, q) {
+  var o = S.ord; q = Math.max(0, Math.floor(Number(q) || 0));
+  if (q) o.cart[id] = q; else delete o.cart[id];
+  cartSave();
+  var it = S.stock[o.storeId].map[id];
+  document.querySelectorAll('[data-item="' + id + '"]').forEach(function (row) {
+    var inp = row.querySelector('input'); if (inp && document.activeElement !== inp) inp.value = q || '';
+    var w = row.querySelector('.warnq'); if (w && it) w.style.display = q > it.q ? 'block' : 'none';
+    var s = row.querySelector('.linesum'); if (s && it) s.textContent = money(price(it) * q);
+  });
+  if (cur() === scrCart) { var tt = $('#ctotal'); if (tt) tt.textContent = money(cartTotals().sum); }
+  drawCartBar();
+}
+function scrCart() {
+  var o = S.ord, p = S.pmap[o.pid], st = S.stock[o.storeId];
+  setTitle('Корзина', p.n);
+  if (!st || st.err) { main('<div class="load">Загружаю остатки…</div>'); if (!st) loadStock(o.storeId); return; }
+  var ids = Object.keys(o.cart);
+  if (!ids.length) { main('<div class="empty">Корзина пуста</div>'); return; }
+  var gone = ids.filter(function (id) { return !st.map[id]; });
+  var html = gone.length ? '<div class="err">Позиций, которых уже нет в остатках: ' + gone.length + '. <a href="#" data-act="dropGone">Убрать их</a></div>' : '';
+  html += ids.filter(function (id) { return st.map[id]; }).map(function (id) {
+    var it = st.map[id], q = o.cart[id];
+    return '<div class="item" data-item="' + esc(id) + '"><div class="row"><div class="grow"><div>' + esc(it.n) + '</div><div class="mute">' + money(price(it)) + ' за шт. · ' +
+      '<b class="linesum" style="color:var(--ink)">' + money(price(it) * q) + '</b></div>' +
+      '<div class="over warnq" style="font-size:13px;display:' + (q > it.q ? 'block' : 'none') + '">Доступно только ' + it.q + '</div></div>' +
+      '<div class="qty"><button class="ic" data-act="qty" data-id="' + esc(id) + '" data-n="-1">−</button><input type="text" inputmode="numeric" data-qty="' + esc(id) + '" value="' + q + '">' +
+      '<button class="ic" data-act="qty" data-id="' + esc(id) + '" data-n="1">+</button></div></div></div>';
+  }).join('');
+  var store = S.stores.filter(function (s) { return s.id === o.storeId; })[0];
+  html += '<div class="card"><table class="t"><tr><td>Склад</td><td>' + esc(store ? store.name : '') + '</td></tr><tr><td>Тип цены</td><td>' + esc((S.priceTypes[ptIndex(p)] || {}).name || '') + '</td></tr>' +
+    '<tr><td><b>Итого</b></td><td><b id="ctotal">' + money(cartTotals().sum) + '</b></td></tr></table>' +
+    '<label class="f">Комментарий к заказу</label><textarea id="ocom" placeholder="Например: привезти до 12:00">' + esc(o.comment) + '</textarea></div>' +
+    '<button class="b wide" id="send" data-act="sendOrder"' + (gone.length ? ' disabled' : '') + '>Отправить в МойСклад</button>' +
+    '<div class="btns" style="margin-top:8px"><button class="b alt" data-act="clearCart">Очистить корзину</button></div>';
+  main(html);
+}
+async function sendOrder() {
+  var o = S.ord, btn = $('#send');
+  btn.disabled = true; btn.textContent = 'Отправляю…';
+  try {
+    var items = Object.keys(o.cart).map(function (id) { return { id: id, qty: o.cart[id] }; });
+    var res = await api('order', { uid: o.uid, pid: o.pid, storeId: o.storeId, items: items, comment: o.comment });
+    lsDel('tp_cart_' + o.pid);
+    delete S.stock[o.storeId];
+    var pid = o.pid; S.ord = null;
+    stack = stack.filter(function (s) { return s[0] !== scrOrder && s[0] !== scrCart; });
+    S.visit = { pid: pid, result: 'Заказ', comment: '', photos: [], order: res.name, sum: res.sum, uid: uid() };
+    go(scrVisit);
+    toast('Заказ № ' + res.name + ' создан в МойСклад');
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Отправить в МойСклад';
+    toast(e.message);
+  }
+}
+
+/* ---------- визит ---------- */
+function scrVisit() {
+  var v = S.visit, p = S.pmap[v.pid];
+  setTitle('Визит', p ? p.n : '');
+  var html = '';
+  if (v.order) html += '<div class="card"><b>Заказ № ' + esc(v.order) + '</b> на ' + money(v.sum) + ' отправлен в МойСклад.<div class="mute">Осталось отметить визит.</div></div>';
+  html += '<div class="card"><label class="f" style="margin-top:0">Результат</label><div class="chips">' + S.results.map(function (r) {
+    return '<button class="chip ' + (v.result === r ? 'on' : '') + '" data-act="res" data-id="' + esc(r) + '">' + esc(r) + '</button>';
+  }).join('') + '</div><label class="f">Комментарий</label><textarea id="vcom" placeholder="Что обсудили, о чём договорились">' + esc(v.comment) + '</textarea>' +
+    '<label class="f">Фото (до 4)</label><input type="file" id="vphoto" accept="image/*" multiple>' +
+    '<div class="thumbs">' + v.photos.map(function (d, i) { return '<div><img src="' + d + '" alt=""><button data-act="delPhoto" data-i="' + i + '">✕</button></div>'; }).join('') + '</div></div>' +
+    '<button class="b wide" id="vsend" data-act="sendVisit">Сохранить визит</button>';
+  main(html);
+}
+function shrink(file) {
+  return new Promise(function (res, rej) {
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var k = Math.min(1, 1280 / Math.max(img.width, img.height));
+      var c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('Не удалось прочитать фото')); };
+    img.src = url;
+  });
+}
+async function addPhotos(files) {
+  var v = S.visit;
+  for (var i = 0; i < files.length && v.photos.length < 4; i++) {
+    try { v.photos.push(await shrink(files[i])); } catch (e) { toast(e.message); }
+  }
+  draw();
+}
+async function sendVisit() {
+  var v = S.visit, p = S.pmap[v.pid];
+  if (!v.result) { toast('Выберите результат визита'); return; }
+  var btn = $('#vsend'); btn.disabled = true; btn.textContent = 'Сохраняю…';
+  try {
+    await api('visit', { uid: v.uid, pid: v.pid, point: p ? p.n : '', result: v.result, comment: v.comment, photos: v.photos, order: v.order || '', sum: v.sum || 0 });
+    S.visit = null; S.route = null; delete S.info[v.pid];
+    toast('Визит сохранён');
+    if (S.user.manager) openTab('points'); else openTab('route');
+  } catch (e) { btn.disabled = false; btn.textContent = 'Сохранить визит'; toast(e.message); }
+}
+
+/* ---------- руководитель: планирование ---------- */
+function scrPlan() {
+  setTitle('Планирование');
+  var pl = S.plan;
+  if (!pl) { main('<div class="load">Загружаю сотрудников…</div>'); loadPlan(); return; }
+  if (pl.err) { main('<div class="err">' + esc(pl.err) + '</div>'); return; }
+  if (!pl.emps.length) { main('<div class="empty">В таблице «Сотрудники» пока нет торговых представителей.</div>'); return; }
+  var html = '<div class="card"><select id="pemp">' + pl.emps.map(function (e) { return '<option value="' + esc(e.key) + '"' + (e.key === pl.emp ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select>' +
+    '<div class="chips" style="margin-top:10px">' + DAYS.map(function (d, i) {
+      var n = pl.tpl ? (pl.tpl[i + 1] || []).length : 0;
+      return '<button class="chip ' + (pl.day === i + 1 ? 'on' : '') + '" data-act="pday" data-n="' + (i + 1) + '">' + d + (n ? ' · ' + n : '') + '</button>';
+    }).join('') + '</div></div>';
+  if (!pl.tpl) { main(html + '<div class="load">Загружаю маршруты…</div>'); return; }
+  var editing = S.edit && S.edit.kind === 'plan';
+  var ids = editing ? S.edit.ids : (pl.tpl[pl.day] || []);
+  html += editing
+    ? '<div class="btns"><button class="b alt" data-act="addPoint">+ Точка</button><button class="b" data-act="saveEdit">Сохранить</button><button class="b alt" data-act="cancelEdit">Отмена</button></div>'
+    : '<div class="btns"><button class="b" data-act="editPlan">Изменить маршрут на ' + DAYS[pl.day - 1] + '</button></div>';
+  html += ids.map(function (id, i) { return pointRow(id, i, { editing: editing }); }).join('') || '<div class="empty">На этот день недели точек нет</div>';
+  main(html);
+}
+async function loadPlan() {
+  try {
+    var emps = await api('employees');
+    S.plan = { emps: emps, emp: emps[0] && emps[0].key, day: wd(iso(new Date())), tpl: null };
+    if (emps.length) await loadTpl();
+  } catch (e) { S.plan = { err: e.message }; }
+  if (cur() === scrPlan) draw();
+}
+async function loadTpl() {
+  var pl = S.plan; pl.tpl = null;
+  try { pl.tpl = await api('getTemplate', { emp: pl.emp }); } catch (e) { pl.tpl = {}; toast(e.message); }
+  if (cur() === scrPlan) draw();
+}
+
+/* ---------- руководитель: отчёт ---------- */
+function scrReport() {
+  setTitle('Отчёт за день', S.user.name);
+  var html = '<div class="card"><input type="date" id="rdate" value="' + esc(S.date) + '"></div>';
+  var r = S.rep;
+  if (!r || r.date !== S.date) { main(html + '<div class="load">Загружаю…</div>'); loadReport(); return; }
+  if (r.err) { main(html + '<div class="err">' + esc(r.err) + '</div>'); return; }
+  html += r.rows.map(function (e) {
+    var visited = {}; e.visits.forEach(function (v) { visited[v.pid] = 1; });
+    var done = e.plan.filter(function (id) { return visited[id]; }).length;
+    var orders = e.visits.filter(function (v) { return v.order; });
+    var sum = orders.reduce(function (s, v) { return s + v.sum; }, 0);
+    var missed = e.plan.filter(function (id) { return !visited[id]; });
+    return '<div class="card"><div class="name">' + esc(e.name) + '</div><div class="bar"><i style="width:' + (e.plan.length ? Math.round(done / e.plan.length * 100) : 0) + '%"></i></div>' +
+      '<div class="mute" style="margin-top:6px">По маршруту ' + done + ' из ' + e.plan.length + ' · всего визитов ' + e.visits.length + ' · заказов ' + orders.length + (sum ? ' на ' + money(sum) : '') + '</div>' +
+      (missed.length ? '<div class="mute" style="margin-top:6px">Не посещены: ' + esc(missed.map(pointName).join('; ')) + '</div>' : '') + '</div>' +
+      e.visits.map(function (v) {
+        return '<div class="item" style="margin-left:14px"><div class="row"><div class="grow"><div>' + esc(v.time) + ' · ' + esc(v.point) + '</div>' +
+          '<span class="tag ' + (v.res === 'Заказ' ? 'ok' : 'warn') + '">' + esc(v.res) + (v.order ? ' № ' + esc(v.order) + ' · ' + money(v.sum) : '') + '</span>' +
+          (v.com ? '<div class="mute" style="margin-top:4px">' + esc(v.com) + '</div>' : '') +
+          (v.photos.length ? '<div style="margin-top:4px">' + v.photos.map(function (u, i) { return '<a target="_blank" rel="noopener" href="' + esc(u) + '">Фото ' + (i + 1) + '</a>'; }).join(' · ') + '</div>' : '') + '</div></div></div>';
+      }).join('');
+  }).join('') || '<div class="empty">Нет торговых представителей</div>';
+  main(html);
+}
+async function loadReport() {
+  var date = S.date;
+  try { S.rep = { date: date, rows: await api('report', { date: date }) }; } catch (e) { S.rep = { date: date, err: e.message }; }
+  if (cur() === scrReport && S.date === date) draw();
+}
+
+/* ---------- отчёт по брендам (Деус · Хулиган · Бланш · Нуар) ---------- */
+function scrBrand() {
+  setTitle('Бренды', 'Деус · Хулиган · Бланш · Нуар');
+  var b = S.brand;
+  if (!b) { main('<div class="load">Загружаю отчёт…</div>'); loadBrand(); return; }
+  if (b.err) {
+    main('<div class="err">' + esc(b.err) + '</div>' + (S.user.manager
+      ? '<button class="b wide" id="bsync" data-act="brandSync">Собрать из МойСклад</button>'
+      : '<button class="b wide" data-act="brandReload">Повторить</button>'));
+    return;
+  }
+  var pl = b.pl, out = BrandReport.render(pl, S.bsep);
+  S.brandPage = out.page;
+  var latest = out.months[out.months.length - 1];
+  var html = '<div class="card"><div class="row"><div class="grow"><label class="f" style="margin-top:0">Отчётный месяц</label><select id="bmonth">' +
+    out.months.slice().reverse().map(function (m) { return '<option value="' + m + '"' + (m === out.sepMonth ? ' selected' : '') + '>' + esc(BrandReport.monthRu(m)) + '</option>'; }).join('') + '</select></div></div>' +
+    '<div class="mute" style="margin-top:8px">Данные из МойСклад на ' + esc(pl.syncedAt.slice(8, 10) + '.' + pl.syncedAt.slice(5, 7) + ' ' + pl.syncedAt.slice(11)) +
+    ' · заказов ' + pl.orders + ' · с ' + esc(BrandReport.fmtDay(pl.firstDay)) + ' по ' + esc(BrandReport.fmtDay(pl.lastDay)) + '</div>' +
+    (pl.noAddr ? '<div class="mute" style="margin-top:4px">Заказов без поля «Адрес - Куда доставить»: ' + pl.noAddr + ' — они попали в точку «(адрес не указан)».</div>' : '') +
+    '<div class="btns" style="margin:10px 0 0">' + (S.user.manager ? '<button class="b alt" id="bsync" data-act="brandSync">Обновить из МойСклад</button>' : '<button class="b alt" data-act="brandReload">Обновить</button>') +
+    '<button class="b alt" data-act="brandDownload">Скачать HTML</button></div></div>' +
+    out.warnings.map(function (w) { return '<div class="demo">' + esc(w) + '</div>'; }).join('') +
+    '<iframe id="bframe" title="Отчёт по брендам"></iframe>';
+  main(html);
+  $('#bframe').srcdoc = out.page;
+  S.blatest = latest;
+}
+async function loadBrand() {
+  try { S.brand = { pl: await api('brandReport') }; } catch (e) { S.brand = { err: e.message }; }
+  if (cur() === scrBrand) draw();
+}
+async function brandSync() {
+  var btn = $('#bsync');
+  if (btn) { btn.disabled = true; btn.textContent = 'Собираю из МойСклад… до минуты'; }
+  try { S.brand = { pl: await api('brandSync') }; toast('Отчёт обновлён'); }
+  catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.textContent = 'Обновить из МойСклад'; } return; }
+  if (cur() === scrBrand) draw();
+}
+function brandDownload() {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([S.brandPage], { type: 'text/html;charset=utf-8' }));
+  a.download = 'Отчет Деус Хулиган Бланш Нуар.html';
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+/* ---------- обработка нажатий ---------- */
+var ACT = {
+  back: back,
+  reload: function () { location.reload(); },
+  tab: function (d) { S.edit = null; openTab(d.id); },
+  day: function (d) { S.edit = null; S.date = addDays(S.date, Number(d.n)); draw(); },
+  today: function () { S.edit = null; S.date = iso(new Date()); draw(); },
+  point: function (d) { go(scrPoint, d.id); },
+  optimize: optimize,
+  ymaps: ymaps,
+  editRoute: function () { S.edit = { kind: 'route', ids: S.route.ids.slice() }; draw(); },
+  editPlan: function () { var pl = S.plan; S.edit = { kind: 'plan', ids: (pl.tpl[pl.day] || []).slice() }; draw(); },
+  cancelEdit: function () { S.edit = null; draw(); },
+  saveEdit: async function () {
+    var e = S.edit;
+    try {
+      if (e.kind === 'route') await saveRouteIds(e.ids);
+      else { var pl = S.plan; await api('setTemplate', { emp: pl.emp, day: pl.day, ids: e.ids }); pl.tpl[pl.day] = e.ids.slice(); }
+      S.edit = null; toast('Сохранено');
+    } catch (err) { toast(err.message); }
+    draw();
+  },
+  up: function (d) { editMove(Number(d.i), -1); },
+  down: function (d) { editMove(Number(d.i), 1); },
+  del: function (d) { S.edit.ids.splice(Number(d.i), 1); draw(); },
+  addPoint: openPicker,
+  pick: function (d) { S.edit.ids.push(d.id); drawPicker(); },
+  closeSheet: function () { $('#sheet').classList.add('hidden'); draw(); },
+  order: function (d) { startOrder(d.id); },
+  visit: function (d) { S.visit = { pid: d.id, result: '', comment: '', photos: [], uid: uid() }; go(scrVisit); },
+  qty: function (d) { setQty(d.id, (S.ord.cart[d.id] || 0) + Number(d.n)); },
+  more: function () { S.ord.limit += 100; drawItems(); },
+  cart: function () { go(scrCart); },
+  reloadStock: function () { delete S.stock[S.ord.storeId]; draw(); },
+  dropGone: function () { var o = S.ord, st = S.stock[o.storeId]; Object.keys(o.cart).forEach(function (id) { if (!st.map[id]) delete o.cart[id]; }); cartSave(); draw(); },
+  clearCart: function () { if (confirm('Очистить корзину?')) { S.ord.cart = {}; cartSave(); back(); } },
+  sendOrder: sendOrder,
+  res: function (d) { S.visit.result = d.id; draw(); },
+  delPhoto: function (d) { S.visit.photos.splice(Number(d.i), 1); draw(); },
+  sendVisit: sendVisit,
+  brandSync: brandSync,
+  brandReload: function () { S.brand = null; draw(); },
+  brandDownload: brandDownload,
+  pday: function (d) { S.edit = null; S.plan.day = Number(d.n); draw(); }
+};
+document.addEventListener('click', function (e) {
+  if (e.target.id === 'sheet') { ACT.closeSheet(); return; }
+  var el = e.target.closest('[data-act]');
+  if (!el) return;
+  if (el.tagName === 'A' && el.getAttribute('href') === '#') e.preventDefault();
+  var fn = ACT[el.dataset.act];
+  if (fn) fn(el.dataset);
+});
+document.addEventListener('input', function (e) {
+  var t = e.target;
+  if (t.id === 'pq') { S.pq = t.value; drawPicker(); }
+  else if (t.id === 'ptq') { S.ptq = t.value; drawPointList(); }
+  else if (t.id === 'oq') { S.ord.q = t.value; S.ord.limit = 60; drawItems(); }
+  else if (t.id === 'ocom') { S.ord.comment = t.value; cartSave(); }
+  else if (t.id === 'vcom') { S.visit.comment = t.value; }
+  else if (t.dataset && t.dataset.qty) { setQty(t.dataset.qty, t.value.replace(/\D/g, '')); }
+});
+document.addEventListener('change', function (e) {
+  var t = e.target;
+  if (t.id === 'store') { S.ord.storeId = t.value; S.ord.cart = {}; cartSave(); draw(); toast('Склад изменён, корзина очищена'); }
+  else if (t.id === 'ogrp') { S.ord.grp = t.value; S.ord.limit = 60; drawItems(); }
+  else if (t.id === 'vphoto') { addPhotos(t.files); }
+  else if (t.id === 'rdate' && t.value) { S.date = t.value; draw(); }
+  else if (t.id === 'bmonth') { S.bsep = t.value === S.blatest ? null : t.value; draw(); }
+  else if (t.id === 'pemp') { S.edit = null; S.plan.emp = t.value; draw(); loadTpl(); }
+});
+
+/* ================= ДЕМО-ДАННЫЕ (выдуманные) ================= */
+var D = null;
+function demoInit() {
+  var names = [['Кальянная «Облако»', 'Самара, ул. Ленинградская, 45', 0], ['Магазин «Дым и Пар»', 'Самара, Московское шоссе, 81', 12400], ['Lounge «Север»', 'Самара, ул. Ново-Садовая, 160', 0],
+    ['Кальянная «Угли»', 'Самара, ул. Куйбышева, 98', 3150], ['Табачная лавка на Победы', 'Самара, ул. Победы, 92', 0], ['Hookah Bar «Медь»', 'Самара, пр. Ленина, 3', 0],
+    ['Магазин «Тёмная сторона»', 'Самара, ул. Гагарина, 55', 48900], ['Кальянная «Вершина»', 'Самара, ул. Стара-Загора, 139', 0], ['Lounge «Причал»', 'Самара, Волжский пр., 36', 0],
+    ['Магазин «Табакерка»', 'Самара, ул. Авроры, 110', 0], ['Кальянная «Туман»', 'Тольятти, ул. Революционная, 52', 7600], ['Бар «Гараж»', 'Самара, ул. Мичурина, 21', 0]];
+  var geo = [[53.1903, 50.0996], [53.2415, 50.2212], [53.2289, 50.1786], [53.1868, 50.0903], [53.2101, 50.2478], [53.2067, 50.1321], [53.2014, 50.1759], [53.2452, 50.2301], [53.2009, 50.1012], [53.1935, 50.1777], [53.5206, 49.3894], [53.2051, 50.1442]];
+  var flavors = ['Supernova', 'Falling Star', 'Bananapapa', 'Kalee Grapefruit', 'Wild Forest', 'Red Tea', 'Pear', 'Generis Raspberry', 'Bounty Hunter', 'Polar Cream', 'Dark Mint', 'Cosmo Flower'];
+  var items = [];
+  flavors.forEach(function (f, i) {
+    items.push({ id: 'i' + i + 'a', t: 'product', n: 'Darkside Core ' + f + ' 100 г', g: 'Табак/Core 100 г', c: 'DC' + i, s: 6 + i * 3, q: 4 + i * 3, p: [1150, 1090, 1040] });
+    if (i < 7) items.push({ id: 'i' + i + 'b', t: 'product', n: 'Darkside Rare ' + f + ' 250 г', g: 'Табак/Rare 250 г', c: 'DR' + i, s: 3 + i, q: 3 + i, p: [2650, 2520, 0] });
+  });
+  ['Чаша глиняная', 'Щипцы', 'Мундштуки одноразовые, 100 шт', 'Уголь кокосовый 1 кг'].forEach(function (n, i) {
+    items.push({ id: 'a' + i, t: 'product', n: n, g: 'Аксессуары', c: 'AC' + i, s: 20 + i * 5, q: 20 + i * 5, p: [450 + i * 120, 420 + i * 110, 400 + i * 100] });
+  });
+  items.sort(function (a, b) { return (a.g + a.n).localeCompare(b.g + b.n, 'ru'); });
+  D = {
+    points: names.map(function (n, i) { return { id: 'p' + i, n: n[0], a: n[1], ph: i % 3 ? '+7 927 000-00-' + String(10 + i) : '', pt: ['pt1', 'pt2', '', 'pt3'][i % 4], d: n[2] }; }),
+    geo: {}, items: items, days: {}, visits: [], n: 1,
+    tpl: { 1: ['p0', 'p3', 'p5', 'p8', 'p11'], 2: ['p1', 'p4', 'p7', 'p9'], 3: ['p2', 'p6', 'p10'], 4: ['p0', 'p3', 'p5', 'p8'], 5: ['p1', 'p2', 'p7', 'p9', 'p11'], 6: ['p6', 'p4'], 7: ['p5', 'p0', 'p9'] }
+  };
+  geo.forEach(function (g, i) { D.geo['p' + i] = g; });
+}
+function demoBrand() {
+  var now = new Date(), y = now.getFullYear(), months = [], i;
+  for (i = 0; i <= now.getMonth(); i++) months.push(y + '-' + String(i + 1).padStart(2, '0'));
+  var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  var today = iso(now), ids = ['deus', 'huligan', 'blansh'];
+  var points = D.points.map(function (p, n) {
+    var q = { c: p.n + ' / ИП Демо', a: '443000, Россия, Самарская обл, г ' + p.a, ld: addDays(today, -Math.floor(rnd() * (n % 4 === 3 ? 120 : 20))), b: {}, r: {} };
+    ids.forEach(function (id, k) {
+      months.forEach(function (m) { if (m <= q.ld.slice(0, 7) && rnd() > 0.35 + k * 0.15) { (q.b[id] = q.b[id] || {})[m] = Math.round(rnd() * 30 + 3) * 500; } });
+    });
+    if (n % 3 === 0) q.r.tokyo = { q: 4 + n, s: (4 + n) * 730, f: q.ld, l: q.ld, z: { '100 г': 4 + n } };
+    if (n % 4 === 1) q.r.currant = { q: 2 + n, s: (2 + n) * 1550, f: q.ld, l: q.ld, z: { '250 г': 2 + n } };
+    return q;
+  });
+  return {
+    v: 1, syncedAt: today + ' ' + now.toTimeString().slice(0, 5), channel: 'Деус', from: y + '-01-01', debtFrom: addDays(today, -100),
+    orders: 148, noAddr: 0, firstDay: y + '-01-05', lastDay: today, months: months,
+    brands: [{ id: 'deus', title: 'DEUS', lastPad: false }, { id: 'huligan', title: 'Хулиган', lastPad: true }, { id: 'blansh', title: 'Blansh и Nuar', lastPad: true }],
+    aromas: [{ id: 'tokyo', title: 'DEUS TOKYO SPRING', color: '#d98fa8' }, { id: 'currant', title: 'DEUS BLACK CURRANT', color: '#6b4a9e' }],
+    points: points,
+    debts: D.points.filter(function (p) { return p.d > 0; }).map(function (p, n) {
+      return { num: '0049' + n, iso: addDays(today, -3 - n * 9), client: p.n + ' / ИП Демо', amount: p.d + 4000, paid: 4000, balance: p.d, addr: '443000, Россия, Самарская обл, г ' + p.a };
+    })
+  };
+}
+function demoApi(action, r) {
+  if (!D) demoInit();
+  var mgr = qs.get('demo') === 'manager';
+  var today = iso(new Date());
+  function dayIds(date) { return D.days[date] || D.tpl[wd(date)] || []; }
+  var f = {
+    init: function () { return { user: { name: mgr ? 'Руководитель (демо)' : 'Иванов Иван (демо)', manager: mgr }, stores: mgr ? [{ id: 's1', name: 'Самара' }, { id: 's2', name: 'Тольятти' }] : [{ id: 's1', name: 'Самара' }],
+      priceTypes: [{ id: 'pt1', name: 'Розница' }, { id: 'pt2', name: 'Опт' }, { id: 'pt3', name: 'Крупный опт' }], defPt: 0, results: ['Заказ', 'Отказ', 'Не застал', 'Закрыто', 'Другое'], today: today, brandReport: true }; },
+    brandReport: demoBrand, brandSync: demoBrand,
+    points: function () { return D.points; },
+    stock: function () { return r.storeId === 's2' ? D.items.slice(0, 9) : D.items; },
+    route: function () { var ids = dayIds(r.date), geo = {}; ids.forEach(function (id) { geo[id] = D.geo[id]; });
+      return { ids: ids.slice(), custom: !!D.days[r.date], visits: D.visits.filter(function (v) { return v.date === r.date; }), geo: geo }; },
+    saveDay: function () { D.days[r.date] = r.ids.slice(); return true; },
+    pointInfo: function () { return { visits: D.visits.filter(function (v) { return v.pid === r.pid; }).slice(-5).reverse() }; },
+    order: function () { var p = D.points.filter(function (x) { return x.id === r.pid; })[0], idx = Math.max(0, ['pt1', 'pt2', 'pt3'].indexOf(p.pt)), sum = 0;
+      r.items.forEach(function (it) { var s = D.items.filter(function (x) { return x.id === it.id; })[0]; sum += (s.p[idx] || s.p[0]) * it.qty; });
+      return { name: String(D.n++).padStart(5, '0'), sum: sum }; },
+    visit: function () { D.visits.push({ time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }), date: today, key: 'demo', emp: 'Иванов Иван (демо)', pid: r.pid, point: r.point, res: r.result, com: r.comment, order: r.order, sum: r.sum, photos: [] }); return true; },
+    employees: function () { return [{ key: 'demo', name: 'Иванов Иван (демо)' }]; },
+    getTemplate: function () { return JSON.parse(JSON.stringify(D.tpl)); },
+    setTemplate: function () { D.tpl[r.day] = r.ids.slice(); return true; },
+    report: function () { return [{ key: 'demo', name: 'Иванов Иван (демо)', plan: dayIds(r.date), visits: D.visits.filter(function (v) { return v.date === r.date; }) }]; }
+  }[action];
+  return new Promise(function (res) { setTimeout(function () { res(JSON.parse(JSON.stringify(f()))); }, 200); });
+}
+
+start();
+</script>
+</body>
+</html>
