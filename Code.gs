@@ -10,6 +10,7 @@
  *   DEFAULT_PRICE_TYPE  — тип цены, если в карточке точки он не задан (если пусто — первый)
  *   POINT_TAG           — брать только контрагентов с этой группой (тегом); пусто — всех
  *   POINT_SKIP_TAGS     — не брать контрагентов из этих групп (через ;), по умолчанию «розница»
+ *   POINT_SKIP_DEPTS    — не брать контрагентов, у которых «Владелец-отдел» из этого списка (через ;), по умолчанию «Закупки»
  *   CYCLE_START         — понедельник, с которого считается 1-я неделя 4-недельного графика, по умолчанию 2026-01-05
  *   RESERVE             — «нет», чтобы заказ не ставил товар в резерв (по умолчанию резерв ставится)
  *   SHOW_ZERO           — «да», чтобы показывать позиции с нулевым остатком
@@ -258,20 +259,29 @@ function getOrg_() {
   return s;
 }
 
+/* Отделы МойСклад (поле «Владелец-отдел» в карточке контрагента). */
+function departments_() {
+  return msAll_('/entity/group').map(function (g) { return { id: g.id, name: g.name || '' }; });
+}
+
 /** Точки: контрагенты + долг. Долг = отрицательный баланс контрагента. */
 function getPoints_() {
   var tag = String(prop_('POINT_TAG', '')).toLowerCase().trim();
   var skip = String(prop_('POINT_SKIP_TAGS', 'розница')).toLowerCase().split(';').map(function (x) { return x.trim(); }).filter(String);
   /* настройки отбора входят в имя кэша: поменяли группы — список пересобирается сразу, а не через 15 минут */
-  var ckey = 'points2_' + Utilities.base64EncodeWebSafe(tag + '|' + skip.join(';')).slice(0, 60);
+  var skipDepts = String(prop_('POINT_SKIP_DEPTS', 'Закупки')).split(';').map(squashName_).filter(String);
+  var ckey = 'points3_' + Utilities.base64EncodeWebSafe(tag + '|' + skip.join(';') + '|' + skipDepts.join(';')).slice(0, 80);
   var p = cacheGet_(ckey);
   if (p) return p;
+  var badDept = {};
+  if (skipDepts.length) departments_().forEach(function (g) { if (skipDepts.indexOf(squashName_(g.name)) >= 0) badDept[g.id] = true; });
   var debts = {}, sign = yes_(prop_('DEBT_POSITIVE', '')) ? -1 : 1;
   msAll_('/report/counterparty').forEach(function (r) {
     debts[idOf_(r.counterparty)] = Number(r.balance) || 0;
   });
   p = msAll_('/entity/counterparty').filter(function (r) {
     if (r.archived) return false;
+    if (badDept[idOf_(r.group)]) return false;
     var tags = (r.tags || []).map(function (t) { return String(t).toLowerCase().trim(); });
     if (skip.some(function (x) { return tags.indexOf(x) >= 0; })) return false;
     return !tag || tags.indexOf(tag) >= 0;
@@ -825,7 +835,7 @@ function syncReport() {
       var tags = ((d.agent && d.agent.tags) || []).map(squash_);
       if (cfg.skipTag && tags.indexOf(cfg.skipTag) >= 0) return;
       debts.push({
-        num: String(d.name || ''), iso: String(d.moment || '').slice(0, 10),
+        num: String(d.name || ''), iso: String(d.moment || '').slice(0, 10), cid: idOf_(d.agent),
         client: String((d.agent && d.agent.name) || '').trim(),
         amount: sum / 100, paid: paid / 100, balance: (sum - paid) / 100,
         addr: String(d.shipmentAddress || '').trim()
@@ -907,17 +917,26 @@ function checkReport() {
  */
 function checkPoints() {
   var skip = String(prop_('POINT_SKIP_TAGS', 'розница')).toLowerCase().split(';').map(function (x) { return x.trim(); }).filter(String);
-  var count = {}, all = 0, noTag = 0;
+  var skipDepts = String(prop_('POINT_SKIP_DEPTS', 'Закупки')).split(';').map(squashName_).filter(String);
+  var deptName = {};
+  departments_().forEach(function (g) { deptName[g.id] = g.name; });
+  var count = {}, dcount = {}, all = 0, noTag = 0;
   msAll_('/entity/counterparty').forEach(function (r) {
     if (r.archived) return;
     all++;
     if (!(r.tags || []).length) noTag++;
     (r.tags || []).forEach(function (t) { count[t] = (count[t] || 0) + 1; });
+    var dn = deptName[idOf_(r.group)] || '(отдел не найден)';
+    dcount[dn] = (dcount[dn] || 0) + 1;
   });
   Logger.log('Контрагентов не в архиве: ' + all + ' · без группы: ' + noTag);
   Object.keys(count).sort().forEach(function (t) {
     Logger.log('Группа «' + t + '»: ' + count[t] + (skip.indexOf(String(t).toLowerCase().trim()) >= 0 ? '  ← не загружается' : ''));
   });
+  Object.keys(dcount).sort().forEach(function (t) {
+    Logger.log('Владелец-отдел «' + t + '»: ' + dcount[t] + (skipDepts.indexOf(squashName_(t)) >= 0 ? '  ← не загружается' : ''));
+  });
   Logger.log('Не загружать группы (POINT_SKIP_TAGS): ' + skip.join('; '));
+  Logger.log('Не загружать отделы (POINT_SKIP_DEPTS): ' + skipDepts.join('; '));
   Logger.log('В приложение попадёт точек: ' + getPoints_().length);
 }
