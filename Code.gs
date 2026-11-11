@@ -10,6 +10,7 @@
  *   DEFAULT_PRICE_TYPE  — тип цены, если в карточке точки он не задан (если пусто — первый)
  *   POINT_TAG           — брать только контрагентов с этой группой (тегом); пусто — всех
  *   POINT_SKIP_TAGS     — не брать контрагентов из этих групп (через ;), по умолчанию «розница»
+ *   POINT_SKIP_DEPTS    — не брать контрагентов, у которых «Владелец-отдел» из этого списка (через ;), по умолчанию «Закупки»
  *   CYCLE_START         — понедельник, с которого считается 1-я неделя 4-недельного графика, по умолчанию 2026-01-05
  *   RESERVE             — «нет», чтобы заказ не ставил товар в резерв (по умолчанию резерв ставится)
  *   SHOW_ZERO           — «да», чтобы показывать позиции с нулевым остатком
@@ -68,7 +69,8 @@ function newKey_() {
 function testMoySklad() {
   Logger.log('Склады: ' + getStores_().map(function (s) { return s.name; }).join(', '));
   Logger.log('Типы цен: ' + getPriceTypes_().map(function (s) { return s.name; }).join(', '));
-  Logger.log('Юрлицо для заказов: ' + getOrg_().name);
+  Logger.log('Все юрлица в МойСклад: ' + msAll_('/entity/organization').filter(function (r) { return !r.archived; }).map(function (r) { return '«' + r.name + '»'; }).join(', '));
+  Logger.log('Юрлицо для заказов: «' + getOrg_().name + '»');
   Logger.log('Точек: ' + getPoints_().length);
 }
 
@@ -244,29 +246,42 @@ function defPt_(pts) {
 function squashName_(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 
 function getOrg_() {
-  var s = cacheGet_('org');
+  var name = prop_('ORG_NAME', 'DEUS SAMARA');
+  /* название входит в имя кэша: сменили юрлицо — оно применяется сразу, а не через час */
+  var ckey = 'org2_' + Utilities.base64EncodeWebSafe(squashName_(name)).slice(0, 60);
+  var s = cacheGet_(ckey);
   if (s) return s;
   var rows = msAll_('/entity/organization').filter(function (r) { return !r.archived; });
-  var name = prop_('ORG_NAME', 'DEUS SAMARA');
   var o = rows.filter(function (r) { return squashName_(r.name) === squashName_(name); })[0];
   if (!o) throw new Error('В МойСклад не найдено юрлицо «' + name + '» (свойство ORG_NAME). Есть: ' + rows.map(function (r) { return r.name; }).join(', '));
   s = { id: o.id, name: o.name };
-  cachePut_('org', s, 3600);
+  cachePut_(ckey, s, 3600);
   return s;
+}
+
+/* Отделы МойСклад (поле «Владелец-отдел» в карточке контрагента). */
+function departments_() {
+  return msAll_('/entity/group').map(function (g) { return { id: g.id, name: g.name || '' }; });
 }
 
 /** Точки: контрагенты + долг. Долг = отрицательный баланс контрагента. */
 function getPoints_() {
-  var p = cacheGet_('points');
-  if (p) return p;
-  var tag = String(prop_('POINT_TAG', '')).toLowerCase();
+  var tag = String(prop_('POINT_TAG', '')).toLowerCase().trim();
   var skip = String(prop_('POINT_SKIP_TAGS', 'розница')).toLowerCase().split(';').map(function (x) { return x.trim(); }).filter(String);
+  /* настройки отбора входят в имя кэша: поменяли группы — список пересобирается сразу, а не через 15 минут */
+  var skipDepts = String(prop_('POINT_SKIP_DEPTS', 'Закупки')).split(';').map(squashName_).filter(String);
+  var ckey = 'points3_' + Utilities.base64EncodeWebSafe(tag + '|' + skip.join(';') + '|' + skipDepts.join(';')).slice(0, 80);
+  var p = cacheGet_(ckey);
+  if (p) return p;
+  var badDept = {};
+  if (skipDepts.length) departments_().forEach(function (g) { if (skipDepts.indexOf(squashName_(g.name)) >= 0) badDept[g.id] = true; });
   var debts = {}, sign = yes_(prop_('DEBT_POSITIVE', '')) ? -1 : 1;
   msAll_('/report/counterparty').forEach(function (r) {
     debts[idOf_(r.counterparty)] = Number(r.balance) || 0;
   });
   p = msAll_('/entity/counterparty').filter(function (r) {
     if (r.archived) return false;
+    if (badDept[idOf_(r.group)]) return false;
     var tags = (r.tags || []).map(function (t) { return String(t).toLowerCase().trim(); });
     if (skip.some(function (x) { return tags.indexOf(x) >= 0; })) return false;
     return !tag || tags.indexOf(tag) >= 0;
@@ -282,7 +297,7 @@ function getPoints_() {
     };
   });
   p.sort(function (a, b) { return a.n.localeCompare(b.n, 'ru'); });
-  cachePut_('points', p, 900);
+  cachePut_(ckey, p, 900);
   return p;
 }
 
@@ -820,7 +835,7 @@ function syncReport() {
       var tags = ((d.agent && d.agent.tags) || []).map(squash_);
       if (cfg.skipTag && tags.indexOf(cfg.skipTag) >= 0) return;
       debts.push({
-        num: String(d.name || ''), iso: String(d.moment || '').slice(0, 10),
+        num: String(d.name || ''), iso: String(d.moment || '').slice(0, 10), cid: idOf_(d.agent),
         client: String((d.agent && d.agent.name) || '').trim(),
         amount: sum / 100, paid: paid / 100, balance: (sum - paid) / 100,
         addr: String(d.shipmentAddress || '').trim()
@@ -893,4 +908,35 @@ function checkReport() {
   pl.debts.forEach(function (d) { bal += d.balance; });
   Logger.log('Долгов: ' + pl.debts.length + ' · общий остаток: ' + Math.round(bal) + ' ₽');
   if (pl.points[0]) Logger.log('Пример точки: ' + pl.points[0].c + ' | ' + pl.points[0].a);
+}
+
+
+/**
+ * Какие группы контрагентов есть в МойСклад и сколько точек попадёт в приложение.
+ * Запустите вручную и откройте журнал: название группы в POINT_SKIP_TAGS должно совпадать с тем, что здесь.
+ */
+function checkPoints() {
+  var skip = String(prop_('POINT_SKIP_TAGS', 'розница')).toLowerCase().split(';').map(function (x) { return x.trim(); }).filter(String);
+  var skipDepts = String(prop_('POINT_SKIP_DEPTS', 'Закупки')).split(';').map(squashName_).filter(String);
+  var deptName = {};
+  departments_().forEach(function (g) { deptName[g.id] = g.name; });
+  var count = {}, dcount = {}, all = 0, noTag = 0;
+  msAll_('/entity/counterparty').forEach(function (r) {
+    if (r.archived) return;
+    all++;
+    if (!(r.tags || []).length) noTag++;
+    (r.tags || []).forEach(function (t) { count[t] = (count[t] || 0) + 1; });
+    var dn = deptName[idOf_(r.group)] || '(отдел не найден)';
+    dcount[dn] = (dcount[dn] || 0) + 1;
+  });
+  Logger.log('Контрагентов не в архиве: ' + all + ' · без группы: ' + noTag);
+  Object.keys(count).sort().forEach(function (t) {
+    Logger.log('Группа «' + t + '»: ' + count[t] + (skip.indexOf(String(t).toLowerCase().trim()) >= 0 ? '  ← не загружается' : ''));
+  });
+  Object.keys(dcount).sort().forEach(function (t) {
+    Logger.log('Владелец-отдел «' + t + '»: ' + dcount[t] + (skipDepts.indexOf(squashName_(t)) >= 0 ? '  ← не загружается' : ''));
+  });
+  Logger.log('Не загружать группы (POINT_SKIP_TAGS): ' + skip.join('; '));
+  Logger.log('Не загружать отделы (POINT_SKIP_DEPTS): ' + skipDepts.join('; '));
+  Logger.log('В приложение попадёт точек: ' + getPoints_().length);
 }

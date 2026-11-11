@@ -22,7 +22,7 @@ header{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;display:
 #sub{font-size:13px;opacity:.75;white-space:nowrap}
 main{padding:12px 12px calc(150px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;background:none;border:0;padding:12px 4px;font-size:14px;color:var(--mute);font-weight:600}
+nav button{flex:1;background:none;border:0;padding:12px 2px;font-size:13px;color:var(--mute);font-weight:600}
 nav button.on{color:var(--acc)}
 .card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
 .row{display:flex;gap:10px;align-items:center}
@@ -152,12 +152,12 @@ function draw() {
 function drawNav() {
   if (!S.user) { $('#nav').innerHTML = ''; return; }
   var tabs = S.user.manager ? [['report', 'Визиты'], ['plan', 'Маршруты'], ['points', 'Точки']] : [['route', 'Маршрут'], ['points', 'Точки']];
-  if (S.canBrand) tabs.push(['brand', 'Бренды']);
+  if (S.canBrand) tabs.push(['debts', 'Долги'], ['brand', 'Бренды']);
   $('#nav').innerHTML = tabs.map(function (t) { return '<button data-act="tab" data-id="' + t[0] + '" class="' + (S.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>'; }).join('');
 }
 function openTab(id) {
   S.tab = id;
-  root({ route: scrRoute, points: scrPoints, plan: scrPlan, report: scrReport, brand: scrBrand }[id]);
+  root({ route: scrRoute, points: scrPoints, plan: scrPlan, report: scrReport, brand: scrBrand, debts: scrDebts }[id]);
 }
 
 /* ---------- запуск ---------- */
@@ -346,6 +346,13 @@ function scrPoint(id) {
   html += '<div class="btns"><button class="b" data-act="order" data-id="' + esc(id) + '">' + (n ? 'Продолжить заказ (' + n + ')' : 'Оформить заказ') + '</button>' +
     '<button class="b alt" data-act="visit" data-id="' + esc(id) + '">Отметить визит</button></div>';
   if (p.a) html += '<div class="btns"><a class="b alt" target="_blank" rel="noopener" href="https://yandex.ru/maps/?text=' + encodeURIComponent(p.a) + '">Показать на карте</a></div>';
+  if (S.canBrand) {
+    if (!S.brand) loadBrand();
+    else if (S.brand.pl) {
+      var mine = (S.brand.pl.debts || []).filter(function (d) { return d.cid === id; });
+      if (mine.length) html += '<div class="grp">Неоплаченные отгрузки</div><div class="card"><table class="t">' + mine.map(debtLine).join('') + '</table></div>';
+    }
+  }
   var info = S.info[id];
   html += '<div class="grp">Последние визиты</div>';
   if (!info) { html += '<div class="load">Загружаю…</div>'; loadInfo(id); }
@@ -649,14 +656,14 @@ function scrBrand() {
 }
 async function loadBrand() {
   try { S.brand = { pl: await api('brandReport') }; } catch (e) { S.brand = { err: e.message }; }
-  if (cur() === scrBrand) draw();
+  if (cur() === scrBrand || cur() === scrDebts || cur() === scrPoint) draw();
 }
 async function brandSync() {
   var btn = $('#bsync');
   if (btn) { btn.disabled = true; btn.textContent = 'Собираю из МойСклад… до минуты'; }
   try { S.brand = { pl: await api('brandSync') }; toast('Отчёт обновлён'); }
   catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.textContent = 'Обновить из МойСклад'; } return; }
-  if (cur() === scrBrand) draw();
+  if (cur() === scrBrand || cur() === scrDebts) draw();
 }
 function brandDownload() {
   var a = document.createElement('a');
@@ -664,6 +671,63 @@ function brandDownload() {
   a.download = 'Отчет Деус Хулиган Бланш Нуар.html';
   document.body.appendChild(a); a.click();
   setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+/* ---------- долги: неоплаченные отгрузки ---------- */
+function daysAgo(isoDay) {
+  if (!isoDay) return null;
+  var a = parseIso(isoDay), b = new Date();
+  return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000);
+}
+function shortDay(isoDay) { var p = String(isoDay || '').split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : ''; }
+function shortAddr(a) { return String(a || '').replace(/^[0-9]{6},\s*/, '').replace(/Россия,\s*/i, '').replace(/Самарская обл[а-я]*,\s*/i, '').replace(/г Самара,\s*/i, ''); }
+function debtLine(d) {
+  var age = daysAgo(d.iso);
+  return '<tr><td>№ ' + esc(d.num) + ' от ' + esc(shortDay(d.iso)) + (age != null ? ' <span class="' + (age > 14 ? 'over' : 'mute') + '">· ' + age + ' дн.</span>' : '') +
+    (d.addr ? '<div class="mute">' + esc(shortAddr(d.addr)) + '</div>' : '') + (d.paid > 0 ? '<div class="mute">оплачено ' + money(d.paid) + ' из ' + money(d.amount) + '</div>' : '') +
+    '</td><td><b>' + money(d.balance) + '</b></td></tr>';
+}
+function scrDebts() {
+  setTitle('Долги', 'неоплаченные отгрузки');
+  var b = S.brand;
+  if (!b) { main('<div class="load">Загружаю долги…</div>'); loadBrand(); return; }
+  if (b.err) {
+    main('<div class="err">' + esc(b.err) + '</div>' + (S.user.manager
+      ? '<button class="b wide" id="bsync" data-act="brandSync">Собрать из МойСклад</button>'
+      : '<button class="b wide" data-act="brandReload">Повторить</button>'));
+    return;
+  }
+  var pl = b.pl, debts = pl.debts || [], total = 0, lateN = 0, lateSum = 0;
+  debts.forEach(function (d) { total += d.balance; if (daysAgo(d.iso) > 14) { lateN++; lateSum += d.balance; } });
+  main('<div class="card"><div class="row"><div class="grow"><div class="mute">Всего к оплате</div><div class="name" style="font-size:22px">' + money(total) + '</div></div>' +
+    '<div style="text-align:right"><div class="mute">отгрузок</div><div class="name" style="font-size:22px">' + debts.length + '</div></div></div>' +
+    (lateN ? '<div class="over" style="margin-top:6px">Старше 14 дней: ' + lateN + ' на ' + money(lateSum) + '</div>' : '') +
+    '<div class="mute" style="margin-top:6px">Отгрузки с ' + esc(shortDay(pl.debtFrom)) + ', канал «' + esc(pl.channel) + '» · данные на ' + esc(pl.syncedAt.slice(8, 10) + '.' + pl.syncedAt.slice(5, 7) + ' ' + pl.syncedAt.slice(11)) + '</div>' +
+    '<div class="btns" style="margin:10px 0 0">' + (S.user.manager ? '<button class="b alt" id="bsync" data-act="brandSync">Обновить из МойСклад</button>' : '<button class="b alt" data-act="brandReload">Обновить</button>') + '</div></div>' +
+    '<input type="search" id="dq" placeholder="Контрагент или адрес" value="' + esc(S.dq || '') + '" autocomplete="off">' +
+    '<select id="dsort" style="margin:8px 0 10px"><option value="sum">Сначала самые крупные</option><option value="old"' + (S.dsort === 'old' ? ' selected' : '') + '>Сначала самые старые</option><option value="name"' + (S.dsort === 'name' ? ' selected' : '') + '>По названию</option></select>' +
+    '<div id="dlist"></div>');
+  drawDebts();
+}
+function drawDebts() {
+  var el = $('#dlist'); if (!el || !S.brand || !S.brand.pl) return;
+  var groups = {}, q = S.dq || '';
+  (S.brand.pl.debts || []).forEach(function (d) {
+    if (q && !match(d.client + ' ' + d.addr, q)) return;
+    var g = groups[d.client] || (groups[d.client] = { client: d.client, cid: d.cid, sum: 0, old: '9999', rows: [] });
+    g.sum += d.balance; g.rows.push(d); if (d.iso && d.iso < g.old) g.old = d.iso;
+  });
+  var list = Object.keys(groups).map(function (k) { return groups[k]; });
+  list.sort(S.dsort === 'old' ? function (a, b) { return a.old.localeCompare(b.old); }
+    : S.dsort === 'name' ? function (a, b) { return a.client.localeCompare(b.client, 'ru'); }
+    : function (a, b) { return b.sum - a.sum; });
+  el.innerHTML = list.map(function (g) {
+    g.rows.sort(function (a, b) { return String(a.iso).localeCompare(String(b.iso)); });
+    var open = g.cid && S.pmap[g.cid];
+    return '<div class="card"><div class="row"><div class="grow"><div class="name">' + esc(g.client) + '</div></div><div class="name over">' + money(g.sum) + '</div></div>' +
+      '<table class="t" style="margin-top:6px">' + g.rows.map(debtLine).join('') + '</table>' +
+      (open ? '<div style="margin-top:8px"><a href="#" data-act="point" data-id="' + esc(g.cid) + '">Открыть точку</a></div>' : '') + '</div>';
+  }).join('') || '<div class="empty">' + (q ? 'Ничего не найдено' : 'Неоплаченных отгрузок нет') + '</div>';
 }
 
 /* ---------- обработка нажатий ---------- */
@@ -734,6 +798,7 @@ document.addEventListener('input', function (e) {
   var t = e.target;
   if (t.id === 'pq') { S.pq = t.value; drawPicker(); }
   else if (t.id === 'ptq') { S.ptq = t.value; drawPointList(); }
+  else if (t.id === 'dq') { S.dq = t.value; drawDebts(); }
   else if (t.id === 'oq') { S.ord.q = t.value; S.ord.limit = 60; drawItems(); }
   else if (t.id === 'ocom') { S.ord.comment = t.value; cartSave(); }
   else if (t.id === 'vcom') { S.visit.comment = t.value; }
@@ -745,6 +810,7 @@ document.addEventListener('change', function (e) {
   else if (t.id === 'ogrp') { S.ord.grp = t.value; S.ord.limit = 60; drawItems(); }
   else if (t.id === 'vphoto') { addPhotos(t.files); }
   else if (t.id === 'rdate' && t.value) { S.date = t.value; draw(); }
+  else if (t.id === 'dsort') { S.dsort = t.value; drawDebts(); }
   else if (t.id === 'bmonth') { S.bsep = t.value === S.blatest ? null : t.value; draw(); }
   else if (t.id === 'pemp') { S.edit = null; S.plan.emp = t.value; draw(); loadTpl(); }
 });
@@ -797,7 +863,7 @@ function demoBrand() {
     aromas: [{ id: 'tokyo', title: 'DEUS TOKYO SPRING', color: '#d98fa8' }, { id: 'currant', title: 'DEUS BLACK CURRANT', color: '#6b4a9e' }],
     points: points,
     debts: D.points.filter(function (p) { return p.d > 0; }).map(function (p, n) {
-      return { num: '0049' + n, iso: addDays(today, -3 - n * 9), client: p.n + ' / ИП Демо', amount: p.d + 4000, paid: 4000, balance: p.d, addr: '443000, Россия, Самарская обл, г ' + p.a };
+      return { num: '0049' + n, cid: p.id, iso: addDays(today, -3 - n * 9), client: p.n + ' / ИП Демо', amount: p.d + 4000, paid: 4000, balance: p.d, addr: '443000, Россия, Самарская обл, г ' + p.a };
     })
   };
 }
